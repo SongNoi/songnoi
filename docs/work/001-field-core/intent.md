@@ -51,7 +51,17 @@ Roadmap: brief §10 MVP item 1, ADR 0006 milestone M1 (`v0.1.0-alpha.1`), first 
      for export). One `Answer` row per value (ADR 0007 point 5).
   4. **`schemaVersion: 1`** is a literal in every stored Form Schema.
   5. **`date`** is a date with optional time (config flag, e.g. `includeTime`). The answer is ISO
-     `YYYY-MM-DD`, or a date-time when `includeTime` is on. The time-zone rule is open (below).
+     `YYYY-MM-DD`, or a date-time when `includeTime` is on.
+     - **Date-time is stored in UTC and shown in the viewer's time zone** (owner, 2026-11-04).
+       The client converts the respondent's local input to an instant; the answer schema
+       accepts only ISO 8601 with an explicit offset or `Z` and normalises it to UTC (`...Z`).
+       The respondent's original offset is not kept.
+     - **Date-only answers are never converted**: `2026-11-04` stays that date in every zone.
+     - `storeAs` therefore distinguishes `"date"` (calendar date) from `"datetime"` (UTC
+       instant). Proposed for 003/005: `Answer.valueDate` as Postgres `date` and a new
+       `Answer.valueDateTime` as `timestamptz` (brief §6 change for the owner to make).
+     - Display rules belong to later items: renderer/admin UI use the viewer's browser zone
+       (002, 008); CSV has no viewer, so 007 must choose a zone (open question 1).
   6. **`file`** has `maxFiles` (default 1). The answer is a list of file IDs (references only;
      upload and storage are item 006), one `Answer` row per file, like checkbox.
 - Exit check (ADR 0006): unit and type tests pass; a built-in and a fixture third-party field
@@ -109,12 +119,11 @@ Roadmap: brief §10 MVP item 1, ADR 0006 milestone M1 (`v0.1.0-alpha.1`), first 
 
 Each has a recommended answer; the caller should confirm with the owner or let `/clarify` settle it.
 
-1. **Time-zone rule for date-time answers** (`includeTime` on). Recommended: store a **UTC ISO
-   instant plus the respondent's UTC offset** (e.g. `2026-11-04T09:30:00Z` with `+07:00`), because
-   `storeAs: "date"` needs a real instant for sorting and filtering and the offset keeps the
-   wall-clock time recoverable for export. Alternative: local wall-clock time with no zone
-   (simpler, fits "appointment at 09:30" forms, but cannot be compared across respondents). Date-only
-   answers are never shifted.
+1. **Time zone for date-time cells in CSV export** (storage rule decided: UTC, decision 5).
+   Not blocking 001; to settle in 007. Recommended: an instance-level time-zone setting
+   (default from the server's `TZ`, e.g. `Asia/Bangkok`), cells written as ISO 8601 with that
+   offset so BI tools parse them unambiguously. `toCell` therefore takes an optional time-zone
+   option rather than reading the environment.
 2. **Shape and storage of "Other".** Recommended: answer is `{ optionIds: string[], other?: string }`
    (single-value fields use at most one entry); an "other" selection is the reserved value
    `"other"` in the option list, not a normal option ID; `other` text is required and non-empty
