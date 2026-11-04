@@ -7,6 +7,12 @@ disable-model-invocation: true
 
 # Requirements-quality checklist
 
+Delegate the writing to the `requirements-analyst` subagent (Planning/Requirements/Design/… roles in
+`docs/work/README.md`). Choose its `model` and `effort` from "Subagent model and effort" there
+(default, escalate for high-risk areas, or light work), pass them to the Agent tool, and say
+which you chose and why; an explicit owner request overrides it. You keep the conversation
+with the owner, approvals and commits.
+
 Input: `docs/work/<NNN-slug>/` (first word of `$ARGUMENTS`; default: newest folder). The rest
 of `$ARGUMENTS` is an optional focus (e.g. "respondent access", "i18n").
 

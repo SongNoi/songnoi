@@ -35,17 +35,42 @@ Rules:
 - Small chores (deps, typos, config) may skip straight to a commit.
 - `000-foundation` predates this process: it has no `tasks.md` and follows its `plan.md` Order.
 
+## Roles (subagents)
+
+Each SDLC step is done by a role subagent in `.claude/agents/`. The main session orchestrates:
+it talks to the owner, asks for approvals, runs the gates and commits. Roles never commit, and
+the author role never reviews its own work.
+
+| Role         | Agent                  | Steps                                  | Can write                         |
+| ------------ | ---------------------- | -------------------------------------- | --------------------------------- |
+| Planning     | `planner`              | `/intent` (draft), `/tasks`            | `docs/work/**`                    |
+| Requirements | `requirements-analyst` | `/spec`, `/clarify`, `/checklist`      | `docs/work/**`                    |
+| Design       | `solution-architect`   | `/impl-plan`, ADR drafts               | `docs/work/**`, `docs/adr/**`     |
+| Development  | `developer`            | `/implement` (production code)         | code, `tasks.md`, `plan.md`       |
+| Testing      | `test-engineer`        | `/implement` (tests first), proof runs | test files, fixtures, test config |
+| Consistency  | `artifact-analyzer`    | `/analyze`                             | nothing                           |
+| Convergence  | `convergence-auditor`  | `/converge`                            | nothing (caller appends)          |
+| Review       | `spec-reviewer`        | `/review`                              | nothing                           |
+
+Write scopes are enforced by `.claude/hooks/scoped-write-guard.mjs`; read-only agents' shell
+use by `.claude/hooks/readonly-bash-guard.mjs`.
+
 ## Subagent model and effort
 
-Each subagent has a default `model` and `effort` in its frontmatter, sized for a typical
-feature. The skill that calls it (`/analyze`, `/converge`, `/review`) picks an override per run
-from the table below and states the choice and the reason in its reply.
+Each agent declares a default `model` and `effort` in its frontmatter, sized for a typical
+feature. The skill that calls it picks the column below for each run and states the choice and
+the reason in its reply.
 
-| Agent                 | Default         | Escalate to  | Light work      |
-| --------------------- | --------------- | ------------ | --------------- |
-| `artifact-analyzer`   | sonnet · medium | opus · high  | sonnet · low    |
-| `convergence-auditor` | sonnet · high   | opus · high  | sonnet · medium |
-| `spec-reviewer`       | opus · high     | opus · xhigh | sonnet · medium |
+| Agent                  | Default         | Escalate to   | Light work      | Why this default                                            |
+| ---------------------- | --------------- | ------------- | --------------- | ----------------------------------------------------------- |
+| `planner`              | sonnet · medium | sonnet · high | sonnet · low    | Structured slicing and task lists; little ambiguity         |
+| `requirements-analyst` | opus · high     | opus · xhigh  | sonnet · medium | Ambiguity, edge cases and two-world thinking need judgement |
+| `solution-architect`   | opus · high     | opus · xhigh  | sonnet · medium | Hard-to-reverse decisions: schema, layers, data, auth       |
+| `developer`            | sonnet · high   | opus · high   | sonnet · medium | Well-specified tasks with tests to steer                    |
+| `test-engineer`        | sonnet · high   | opus · high   | sonnet · medium | Finding the failing case matters more than prose            |
+| `artifact-analyzer`    | sonnet · medium | opus · high   | sonnet · low    | Bounded document cross-check                                |
+| `convergence-auditor`  | sonnet · high   | opus · high   | sonnet · medium | Traces code against artifacts, runs suites                  |
+| `spec-reviewer`        | opus · high     | opus · xhigh  | sonnet · medium | Final independent gate, security judgement                  |
 
 **Escalate** when the work touches any high-risk area:
 
@@ -53,16 +78,15 @@ from the table below and states the choice and the reason in its reply.
 - the Form Schema or `defineField` (`packages/schema`);
 - Prisma schema/migrations or the `Response` + `Answer` transaction;
 - file upload/download or any route handler;
-- a large feature: more than 20 requirements or more than 40 tasks.
+- a large feature: more than 20 requirements or more than 40 tasks;
+- a previous run of the same agent missed something or produced CRITICAL/HIGH findings.
 
 **Light work** applies to docs-only, config-only or chore changes with no runtime code.
 
 Rules:
 
-- The user's explicit request always wins (e.g. "review with opus at max effort").
-- `max` effort is used only when the user asks for it.
-- When in doubt, keep the default; never go below it for a high-risk area.
-
-Subagents in `.claude/agents/`: `artifact-analyzer` (read-only, no shell), `convergence-auditor`
-and `spec-reviewer` (read-only; shell limited to git reads and tests by
-`.claude/hooks/readonly-bash-guard.mjs`).
+- The owner's explicit request always wins (e.g. "use opus at max effort for the review").
+- `max` effort is used only when the owner asks for it.
+- When in doubt, keep the default; never go below the default for a high-risk area.
+- In `/implement`, each phase may use a different column: e.g. a Foundational phase that
+  touches migrations escalates, a Polish phase that only edits docs goes light.

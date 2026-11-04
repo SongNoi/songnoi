@@ -21,11 +21,15 @@ The rest of `$ARGUMENTS` optionally limits scope to some phases or user stories.
 
 3. Read `spec.md`, `plan.md`, `tasks.md`, `docs/constitution.md` and the `.claude/rules/` that
    match the files you will touch.
-4. Work phase by phase in order; within a phase respect dependencies, and `[P]` tasks may be
-   done together. For each task:
-   - write the test task first and see it fail for the right reason;
-   - implement until it passes; run `pnpm lint`, `pnpm typecheck` and the relevant tests;
-   - tick it in `tasks.md` (`- [x]`).
+4. Work phase by phase in order, with two role subagents per phase (`docs/work/README.md`,
+   "Roles"); pick each one's `model`/`effort` for that phase from "Subagent model and effort"
+   and say which and why:
+   - `test-engineer` writes the phase's test tasks first and confirms they fail for the right
+     reason;
+   - `developer` implements the phase's tasks until those tests pass, runs `pnpm lint`,
+     `pnpm typecheck` and the relevant tests, and ticks the tasks in `tasks.md`;
+   - `[P]` tasks touching different files may go to parallel `developer` runs.
+     Verify the result yourself (run the checks) before moving to the next phase.
 5. Commit at least once per phase (Conventional Commits). If the work diverges from
    `plan.md` or `tasks.md`, update them **in the same commit**.
 6. Stop at the end of the requested scope or on a failure you cannot fix; report what is done,

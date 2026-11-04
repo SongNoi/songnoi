@@ -7,6 +7,12 @@ disable-model-invocation: true
 
 # Write spec
 
+Delegate the writing to the `requirements-analyst` subagent (Planning/Requirements/Design/… roles in
+`docs/work/README.md`). Choose its `model` and `effort` from "Subagent model and effort" there
+(default, escalate for high-risk areas, or light work), pass them to the Agent tool, and say
+which you chose and why; an explicit owner request overrides it. You keep the conversation
+with the owner, approvals and commits.
+
 Input: `docs/work/$ARGUMENTS/intent.md` (if no argument, use the newest folder in `docs/work/`).
 Read it, `docs/project-brief.md` and `docs/constitution.md`, then write `spec.md` next to it.
 

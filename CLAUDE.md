@@ -38,9 +38,11 @@ Principles every gate checks: `docs/constitution.md` (derived from the brief; am
 7. `/converge` → loop with `/implement` until converged
 8. `/review` → `spec-reviewer` against `REVIEW.md`; the author never self-approves
 
-Subagents (`artifact-analyzer`, `convergence-auditor`, `spec-reviewer`) have default model and
-effort in their frontmatter; skills may override them per run by the rules in
-`docs/work/README.md` ("Subagent model and effort"), and my explicit request always wins.
+Each step is done by a role subagent — `planner`, `requirements-analyst`, `solution-architect`,
+`developer`, `test-engineer`, plus `artifact-analyzer`, `convergence-auditor`, `spec-reviewer`.
+Each has a default model and effort in its frontmatter; skills choose default / escalate /
+light per run by the rules in `docs/work/README.md` ("Subagent model and effort"), and my
+explicit request always wins. The main session talks to me, runs the gates and commits.
 
 Small chores (deps, typos, config) may skip the gates but still need a clear commit.
 Do not build features from a later roadmap phase than the spec states.

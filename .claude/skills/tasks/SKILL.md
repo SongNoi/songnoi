@@ -7,6 +7,12 @@ disable-model-invocation: true
 
 # Generate tasks
 
+Delegate the writing to the `planner` subagent (Planning/Requirements/Design/… roles in
+`docs/work/README.md`). Choose its `model` and `effort` from "Subagent model and effort" there
+(default, escalate for high-risk areas, or light work), pass them to the Agent tool, and say
+which you chose and why; an explicit owner request overrides it. You keep the conversation
+with the owner, approvals and commits.
+
 Input: `docs/work/<NNN-slug>/` (default: newest folder). Requires `spec.md` and `plan.md`.
 
 1. Read `spec.md` (user stories, requirements, acceptance criteria), `plan.md` (files, design,
