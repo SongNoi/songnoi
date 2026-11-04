@@ -66,6 +66,8 @@ const policies = [
     allow: [
       sameModule("application"),
       sameModule("domain"),
+      // Cross-module use goes through the other module's application layer (R37).
+      el("application"),
       el("kernel"),
       external(PURE_EXTERNALS),
     ],
@@ -86,13 +88,19 @@ const policies = [
     allow: [
       sameModule("application"),
       sameModule("domain"),
+      el("application"), // another module's use cases (R37)
       el("shared-action"),
-      el("shared-infrastructure"), // queries.ts may read with Prisma directly (R40)
       el("kernel"),
       el("composition"),
       el("i18n"),
       external(),
     ],
+  },
+  {
+    // Only queries.ts may read with Prisma directly (CQRS-lite, R40). actions.ts must write
+    // through application use cases, so it gets no infrastructure access.
+    from: { file: { categories: "module-api", captured: { kind: "queries" } } },
+    allow: [el("shared-infrastructure")],
   },
   {
     from: from("auth"),
@@ -173,11 +181,14 @@ const policies = [
 ]
 
 const USE_SERVER_INLINE = ":function > BlockStatement > ExpressionStatement[directive='use server']"
+const USE_SERVER_FILE = "Program > ExpressionStatement[directive='use server']"
+const DEFINE_ACTION_ONLY = "Create Server Actions with defineAction in a module's actions.ts (R39)."
+const EXPORT_SHAPE = "Export Server Actions as `export const x = defineAction({...})` (R39)."
 
 /**
  * @param {{ rootPath: string, tsconfig: string, files?: string[] }} options
  */
-export function architecture({ rootPath, tsconfig, files = ["src/**/*.{ts,tsx}"] }) {
+export function architecture({ rootPath, tsconfig, files = ["src/**/*.{ts,tsx,js,jsx,mjs,cjs}"] }) {
   return [
     {
       files,
@@ -196,7 +207,8 @@ export function architecture({ rootPath, tsconfig, files = ["src/**/*.{ts,tsx}"]
             default: "disallow",
             // Also check npm/node imports, so inner layers can't reach frameworks or Prisma.
             checkAllOrigins: true,
-            // A local import that matches no element is a mistake, not something to skip.
+            // A local import inside src/ that matches no element is an error, not skipped.
+            // (Imports resolving outside src/ are outside `include` and not checked here.)
             checkUnknownLocals: true,
             policies,
             message:
@@ -204,13 +216,11 @@ export function architecture({ rootPath, tsconfig, files = ["src/**/*.{ts,tsx}"]
           },
         ],
         "boundaries/no-unknown-files": "error",
-        // Inline "use server" functions bypass defineAction's auth + validation (R39).
+        // Any "use server" outside actions.ts creates an unguarded, unvalidated endpoint (R39).
         "no-restricted-syntax": [
           "error",
-          {
-            selector: USE_SERVER_INLINE,
-            message: "Create Server Actions with defineAction in a module's actions.ts (R39).",
-          },
+          { selector: USE_SERVER_INLINE, message: DEFINE_ACTION_ONLY },
+          { selector: USE_SERVER_FILE, message: DEFINE_ACTION_ONLY },
         ],
       },
     },
@@ -219,19 +229,18 @@ export function architecture({ rootPath, tsconfig, files = ["src/**/*.{ts,tsx}"]
       rules: {
         "no-restricted-syntax": [
           "error",
-          {
-            selector: USE_SERVER_INLINE,
-            message: "Create Server Actions with defineAction in a module's actions.ts (R39).",
-          },
-          {
-            selector: "ExportNamedDeclaration > FunctionDeclaration",
-            message: "Export Server Actions as `export const x = defineAction({...})` (R39).",
-          },
+          // The file-level "use server" is required here, so only the inline form is banned.
+          { selector: USE_SERVER_INLINE, message: DEFINE_ACTION_ONLY },
+          { selector: "ExportNamedDeclaration > FunctionDeclaration", message: EXPORT_SHAPE },
           {
             selector:
               "ExportNamedDeclaration > VariableDeclaration > VariableDeclarator:not([init.type='CallExpression'][init.callee.name='defineAction'])",
-            message: "Export Server Actions as `export const x = defineAction({...})` (R39).",
+            message: EXPORT_SHAPE,
           },
+          // `export { x }`, `export { x } from "..."` and `export *` would publish anything as an
+          // action, e.g. a raw use case with no guard.
+          { selector: "ExportNamedDeclaration[specifiers.length>0]", message: EXPORT_SHAPE },
+          { selector: "ExportAllDeclaration", message: EXPORT_SHAPE },
           {
             selector: "ExportDefaultDeclaration",
             message: "actions.ts must not have a default export (R39).",

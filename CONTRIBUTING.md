@@ -21,7 +21,7 @@ Bug fixes start with a failing test that reproduces the bug; the fix must not ed
 ```bash
 corepack enable
 pnpm install          # also installs git hooks (lefthook)
-docker compose up -d postgres minio
+docker compose up -d postgres
 ```
 
 ## Before you push

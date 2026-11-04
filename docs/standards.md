@@ -8,7 +8,10 @@ files and `pnpm-lock.yaml`.
 
 - Node 24 (`.nvmrc`), `corepack enable`, then `pnpm install` (also installs git hooks and
   generates the Prisma client).
-- Local services: `docker compose up -d postgres`. Copy `.env.example` to `.env`.
+- Local services: `docker compose up -d postgres`. Copy `.env.example` to `.env` at the repo
+  root; docker compose, `pnpm dev` and the Prisma CLI all read it.
+- The telemetry switches in `.env` only reach tools started through Next/Prisma. Turborepo
+  reads the shell, so also `export TURBO_TELEMETRY_DISABLED=1` (or use direnv).
 
 ## Commands
 

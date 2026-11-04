@@ -32,5 +32,11 @@ complexity without adding isolation that cookies, secrets and guards do not alre
 - ESLint (`eslint-plugin-boundaries`) forbids `modules/auth/respondent` from importing
   `modules/auth/admin` and the reverse, and `(respond)` pages from importing `(admin)`.
 - Better Auth telemetry is explicitly disabled in both instances.
+- **Admin sign-up is closed after the first admin.** A `databaseHooks.user.create.before` hook
+  on the admin instance refuses (403) any new admin once `admin_user` has a row, so a visitor
+  or respondent cannot make themselves an admin. The first admin is whoever installs SongNoi;
+  inviting further admins is a later work item. Respondent sign-up stays open (per-form
+  access modes decide who may answer). Known gap: two simultaneous _first_ sign-ups could both
+  pass the check; acceptable for a fresh self-hosted install, revisit with the invite flow.
 - Per-form respondent access modes (token link, password, email domain; brief §7) build on
   the respondent instance in later work items.

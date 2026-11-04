@@ -27,19 +27,24 @@ env.ts · i18n/ · instrumentation.ts
 (`apps/web/eslint/architecture.mjs`, proven by fixture tests):
 
 - `domain` → own domain, `shared/kernel`, `zod`, `@songnoi/schema` only.
-- `application` → own application/domain, `shared/kernel`, `zod`, `@songnoi/schema`.
+- `application` → own application/domain, any module's `application` (cross-module use goes
+  through use cases, never another module's domain or infrastructure), `shared/kernel`, `zod`,
+  `@songnoi/schema`.
 - `infrastructure` → own module layers, `shared/infrastructure`, `shared/kernel`, npm.
-- `actions.ts` / `queries.ts` → own application/domain, `shared/action`,
-  `shared/infrastructure` (queries read Prisma directly), `shared/kernel`, `composition.ts`,
-  `i18n`.
+- `actions.ts` → own application/domain, any module's `application`, `shared/action`,
+  `shared/kernel`, `composition.ts`, `i18n`. **No infrastructure**: writes go through use cases.
+- `queries.ts` → the same plus `shared/infrastructure`, because reads may use Prisma directly.
 - `app/(admin)` and `app/(respond)` → `actions.ts`, `queries.ts`, their own auth world,
   `shared/ui`, `i18n`, `shared/kernel` — never a module's internals, never each other.
-- No module imports another module's internals.
+- No module imports another module's `domain` or `infrastructure`.
 
 **Mutations** use Server Actions created with `defineAction({ auth, input, handler })`:
 `auth` (`"admin" | "respondent" | "public"`) is required at the type level; the wrapper runs
-the guard, validates input with Zod and always returns `ActionResult`. Bare `"use server"`
-functions are a lint error.
+the guard, validates input with Zod and always returns `ActionResult`, while letting Next.js
+`redirect()` / `notFound()` propagate. Lint rejects every other way to create an endpoint:
+`"use server"` at file level outside `actions.ts`, inline `"use server"` anywhere, and in
+`actions.ts` any export that is not `export const x = defineAction(...)` — including
+`export { x }`, `export { x } from` and `export *`.
 
 **Reads** happen in Server Components through `queries.ts` (CQRS-lite): no use case or
 repository just to pass a read through.

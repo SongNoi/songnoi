@@ -83,6 +83,17 @@ describe("defineAction error handling", () => {
     expect(logError).not.toHaveBeenCalled()
   })
 
+  it("lets Next.js redirect() propagate instead of turning it into INTERNAL", async () => {
+    const { redirect } = await import("next/navigation")
+    const action = defineAction({
+      auth: "public",
+      input: z.object({}),
+      handler: () => redirect("/done"),
+    })
+    await expect(action({})).rejects.toThrow("NEXT_REDIRECT")
+    expect(logError).not.toHaveBeenCalled()
+  })
+
   it("public actions do not consult either guard", async () => {
     const action = defineAction({ auth: "public", input: z.object({}), handler: () => 1 })
     expect(await action({})).toEqual({ ok: true, data: 1 })

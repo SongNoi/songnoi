@@ -16,14 +16,22 @@ const adminAuth = createAdminAuth(db, { APP_URL, ADMIN_AUTH_SECRET: "a".repeat(4
 const respondentAuth = createRespondentAuth(db, { APP_URL, RESPONDENT_AUTH_SECRET: "r".repeat(40) })
 
 /** Signs up through the real HTTP handler and returns the Cookie header it set. */
-async function signUp(handler: (r: Request) => Promise<Response>, basePath: string, email: string) {
-  const res = await handler(
+async function signUpRequest(
+  handler: (r: Request) => Promise<Response>,
+  basePath: string,
+  email: string,
+) {
+  return handler(
     new Request(`${APP_URL}${basePath}/sign-up/email`, {
       method: "POST",
       headers: { "content-type": "application/json", origin: APP_URL },
       body: JSON.stringify({ email, password: "correct-horse-battery", name: "Test" }),
     }),
   )
+}
+
+async function signUp(handler: (r: Request) => Promise<Response>, basePath: string, email: string) {
+  const res = await signUpRequest(handler, basePath, email)
   expect(res.status, await res.clone().text()).toBe(200)
   return res.headers
     .getSetCookie()
@@ -102,5 +110,22 @@ describe("cross-world sessions are rejected with 401", () => {
   it("no cookie at all is rejected by both", async () => {
     await expectUnauthorized(requireAdmin(new Headers(), adminAuth))
     await expectUnauthorized(requireRespondent(new Headers(), respondentAuth))
+  })
+})
+
+describe("admin sign-up is closed after the first admin (brief §7)", () => {
+  it("refuses a second admin sign-up with 403", async () => {
+    const res = await signUpRequest(adminAuth.handler, "/api/auth/admin", "intruder@example.com")
+    expect(res.status).toBe(403)
+    expect(await db.adminUser.count()).toBe(1)
+  })
+
+  it("does not affect respondent sign-up", async () => {
+    const res = await signUpRequest(
+      respondentAuth.handler,
+      "/api/auth/respondent",
+      "another-respondent@example.com",
+    )
+    expect(res.status).toBe(200)
   })
 })

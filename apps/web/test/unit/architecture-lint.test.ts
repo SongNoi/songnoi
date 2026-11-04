@@ -33,6 +33,8 @@ describe("allowed edges", () => {
     "modules/demo/application/use-case.ts",
     "modules/demo/infrastructure/repo.ts",
     "modules/demo/actions.ts",
+    "modules/demo/queries.ts",
+    "modules/demo/application/cross-module-use-case.ts",
     "modules/other/domain/x.ts",
     "modules/auth/admin/instance.ts",
     "app/(admin)/page.tsx",
@@ -49,6 +51,28 @@ describe("forbidden edges", () => {
       "boundaries/dependencies",
     ],
     ["domain → infrastructure", "modules/demo/domain/bad-outward.ts", "boundaries/dependencies"],
+    [
+      "domain → Prisma (@prisma/client)",
+      "modules/demo/domain/bad-prisma.ts",
+      "boundaries/dependencies",
+    ],
+    ["domain → shared db", "modules/demo/domain/bad-db.ts", "boundaries/dependencies"],
+    [
+      "actions.ts → Prisma (writes skip use cases)",
+      "modules/writes/actions.ts",
+      "boundaries/dependencies",
+    ],
+    [
+      'file-level "use server" in application',
+      "modules/demo/application/bad-file-use-server.ts",
+      "no-restricted-syntax",
+    ],
+    [
+      'file-level "use server" in a page folder',
+      "app/(admin)/bad-file-use-server.ts",
+      "no-restricted-syntax",
+    ],
+    ["export * from actions.ts", "modules/reexportall/actions.ts", "no-restricted-syntax"],
     [
       "module → other module internals",
       "modules/demo/application/bad-cross-module.ts",
@@ -76,6 +100,13 @@ describe("forbidden edges", () => {
 
   it("bare exports in actions.ts are errors", async () => {
     const errors = (await errorsFor("modules/bad/actions.ts")).filter((e) =>
+      e.startsWith("no-restricted-syntax:"),
+    )
+    expect(errors).toHaveLength(2)
+  })
+
+  it("re-exports from actions.ts are errors (`export { x }` and `export { x } from`)", async () => {
+    const errors = (await errorsFor("modules/reexport/actions.ts")).filter((e) =>
       e.startsWith("no-restricted-syntax:"),
     )
     expect(errors).toHaveLength(2)

@@ -1,4 +1,5 @@
 import "server-only"
+import { unstable_rethrow } from "next/navigation"
 import type { z } from "zod"
 import { requireAdmin, type AdminSession } from "@/modules/auth/admin/guard"
 import { requireRespondent, type RespondentSession } from "@/modules/auth/respondent/guard"
@@ -49,6 +50,8 @@ export function defineAction<A extends ActionAuth, S extends z.ZodType, R>(
       if (!parsed.success) return fail(toAppError(parsed.error))
       return ok(await definition.handler(parsed.data, ctx))
     } catch (error) {
+      // Let Next.js control flow (redirect(), notFound(), forbidden()…) propagate.
+      unstable_rethrow(error)
       if (!(error instanceof AppException)) {
         getLogger().error({ err: error, auth: definition.auth }, "server action failed")
       }

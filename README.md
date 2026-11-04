@@ -22,8 +22,10 @@ Open <http://localhost:3000>. Health check: <http://localhost:3000/api/health>.
 Requirements: Node 24 (see `.nvmrc`), Corepack enabled (`corepack enable`), Docker.
 
 ```bash
+cp .env.example .env    # set the secrets; apps/web reads this root .env too
 pnpm install
-docker compose up -d postgres minio
+docker compose up -d postgres
+pnpm --filter @songnoi/web db:deploy
 pnpm dev
 ```
 

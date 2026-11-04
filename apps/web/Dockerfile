@@ -42,7 +42,7 @@ COPY --from=build --chown=node:node /repo/apps/web/.next/static ./apps/web/.next
 COPY --from=build --chown=node:node /repo/apps/web/public ./apps/web/public
 COPY --from=migrator --chown=node:node /migrate/node_modules ./migrate/node_modules
 COPY --chown=node:node apps/web/prisma ./migrate/prisma
-COPY --chown=node:node apps/web/prisma.config.ts ./migrate/prisma.config.ts
+COPY --chown=node:node apps/web/prisma.config.ts apps/web/load-root-env.ts ./migrate/
 COPY --chown=node:node apps/web/docker-entrypoint.sh /usr/local/bin/songnoi-entrypoint
 
 USER node

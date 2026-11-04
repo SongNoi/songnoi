@@ -1,4 +1,7 @@
 import { defineConfig } from "prisma/config"
+import { loadRootEnv } from "./load-root-env"
+
+loadRootEnv()
 
 const url = process.env.DATABASE_URL
 const shadowDatabaseUrl = process.env.SHADOW_DATABASE_URL

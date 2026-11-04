@@ -1,6 +1,9 @@
 import type { NextConfig } from "next"
 import path from "node:path"
 import createNextIntlPlugin from "next-intl/plugin"
+import { loadRootEnv } from "./load-root-env"
+
+loadRootEnv()
 
 const withNextIntl = createNextIntlPlugin("./src/i18n/request.ts")
 
