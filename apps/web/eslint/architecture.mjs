@@ -30,6 +30,7 @@ const fileDescriptors = [
   },
   { category: "composition", pattern: "src/composition.ts" },
   { category: "env", pattern: "src/env.ts" },
+  { category: "instrumentation", pattern: "src/instrumentation.ts" },
   { category: "app-root", pattern: "src/app/*.{ts,tsx,css}" },
 ]
 
@@ -123,6 +124,7 @@ const policies = [
     ],
   },
   { from: from("env"), allow: [external()] },
+  { from: from("instrumentation"), allow: [el("env"), external()] },
   { from: { element: { type: "i18n" } }, allow: [el("i18n"), el("kernel"), external()] },
   {
     from: from("app-root"),
