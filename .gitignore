@@ -6,3 +6,8 @@ dist
 !.env.example
 CLAUDE.local.md
 .claude/settings.local.json
+coverage
+playwright-report
+test-results
+*.tsbuildinfo
+next-env.d.ts
