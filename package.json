@@ -14,12 +14,16 @@
     "test": "turbo run test",
     "test:integration": "turbo run test:integration",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "prepare": "lefthook install"
   },
   "devDependencies": {
+    "@commitlint/cli": "21.2.4",
+    "@commitlint/config-conventional": "21.2.4",
     "@songnoi/config": "workspace:*",
     "@types/node": "24.19.2",
     "eslint": "10.14.0",
+    "lefthook": "2.2.2",
     "prettier": "3.9.10",
     "turbo": "2.11.10",
     "typescript": "6.0.3",

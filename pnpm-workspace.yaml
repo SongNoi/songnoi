@@ -1,3 +1,7 @@
 packages:
   - "apps/*"
   - "packages/*"
+
+# Hooks are installed by the root `prepare` script instead of lefthook's postinstall.
+ignoredBuiltDependencies:
+  - lefthook
