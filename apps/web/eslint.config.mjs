@@ -3,7 +3,7 @@ import { next } from "@songnoi/config/eslint/next"
 import { architecture } from "./eslint/architecture.mjs"
 
 export default [
-  { ignores: ["test/fixtures/**"] },
+  { ignores: ["test/fixtures/**", "src/shared/infrastructure/generated/**"] },
   ...base({ tsconfigRootDir: import.meta.dirname }),
   ...next,
   ...architecture({

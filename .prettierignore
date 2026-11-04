@@ -8,3 +8,4 @@ pnpm-lock.yaml
 **/prisma/migrations
 CODE_OF_CONDUCT.md
 docs/project-brief.md
+**/generated/prisma
