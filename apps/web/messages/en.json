@@ -1,0 +1,20 @@
+{
+  "common": {
+    "appName": "SongNoi",
+    "tagline": "Just send it. Your data stays home.",
+    "language": "Language",
+    "languages": {
+      "en": "English",
+      "th": "ไทย"
+    }
+  },
+  "admin": {
+    "home": {
+      "title": "Welcome to SongNoi",
+      "intro": "A self-hosted form builder. Your forms, responses and files never leave this machine."
+    }
+  },
+  "respond": {
+    "poweredBy": "Made with SongNoi"
+  }
+}

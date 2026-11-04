@@ -134,6 +134,7 @@ const policies = [
     from: from("app-admin"),
     allow: [
       el("app-admin"),
+      el("app-root"),
       el("module-api"),
       el("auth", { world: "admin" }),
       el("shared-ui"),
@@ -146,6 +147,7 @@ const policies = [
     from: from("app-respond"),
     allow: [
       el("app-respond"),
+      el("app-root"),
       el("module-api"),
       el("auth", { world: "respondent" }),
       el("shared-ui"),
