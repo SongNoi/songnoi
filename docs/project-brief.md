@@ -48,7 +48,7 @@ License: MIT
 | Auth | Better Auth |
 | Drag & drop | dnd-kit |
 | Conditional logic | JSON Logic (ไม่คิดภาษาเงื่อนไขเอง) |
-| File storage | S3-compatible (MinIO สำหรับ self-host) |
+| File storage | S3-compatible (RustFS สำหรับ self-host) |
 | Deploy | Docker Compose |
 | Monorepo | pnpm workspace + Turborepo (แนะนำ) |
  
