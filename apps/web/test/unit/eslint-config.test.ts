@@ -17,6 +17,26 @@ describe("apps/web eslint.config.mjs", () => {
     expect(JSON.stringify(rule)).toContain("Program > ExpressionStatement[directive='use server']")
   })
 
+  it.each([
+    "src/app/(admin)/page.tsx",
+    "src/app/(respond)/layout.tsx",
+    "src/modules/forms/application/publish.ts",
+    "src/shared/infrastructure/db.ts",
+    "../../packages/renderer/src/index.ts",
+    "../../packages/schema/src/index.ts",
+  ])("keeps both bans for %s (no later block drops them)", async (file) => {
+    const appRoot = path.resolve(import.meta.dirname, "../..")
+    const target = path.resolve(appRoot, file)
+    const cwd = file.startsWith("../") ? path.resolve(appRoot, "../..") : appRoot
+    const eslint = new ESLint({ cwd })
+    const config = (await eslint.calculateConfigForFile(target)) as {
+      rules: Record<string, unknown[]>
+    }
+    const rule = JSON.stringify(config.rules["no-restricted-syntax"])
+    expect(rule).toContain("Program > ExpressionStatement[directive='use server']")
+    expect(rule).toContain(":function > BlockStatement > ExpressionStatement")
+  })
+
   it("keeps the inline ban but allows the file directive in a module's actions.ts", async () => {
     const appRoot = path.resolve(import.meta.dirname, "../..")
     const eslint = new ESLint({ cwd: appRoot })

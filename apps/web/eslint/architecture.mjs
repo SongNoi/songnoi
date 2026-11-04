@@ -235,10 +235,16 @@ export function architecture({ rootPath, tsconfig, files = ["src/**/*.{ts,tsx,js
             selector: "ExportNamedDeclaration > VariableDeclaration[kind!='const']",
             message: EXPORT_SHAPE,
           },
-          // A local `defineAction` would shadow the real wrapper.
+          // `defineAction` must be the real wrapper: no local declaration, no alias, and no
+          // same-named import from any other module (e.g. a passthrough `(f) => f`).
           {
-            selector:
-              "VariableDeclarator[id.name='defineAction'], FunctionDeclaration[id.name='defineAction'], ImportSpecifier[local.name='defineAction'][imported.name!='defineAction']",
+            selector: [
+              "VariableDeclarator[id.name='defineAction']",
+              "FunctionDeclaration[id.name='defineAction']",
+              "ImportSpecifier[local.name='defineAction'][imported.name!='defineAction']",
+              "ImportDeclaration:not([source.value=/(^|\\/)shared\\/action\\/define-action$/]) > :matches(ImportSpecifier, ImportDefaultSpecifier, ImportNamespaceSpecifier)[local.name='defineAction']",
+            ].join(", "),
+            message: "Import defineAction only from @/shared/action/define-action (R39).",
           },
           // `export { x }`, `export { x } from "..."` and `export *` would publish anything as an
           // action, e.g. a raw use case with no guard.
