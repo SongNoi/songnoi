@@ -14,15 +14,15 @@ Requirement numbers (R1–R35) refer to spec.md.
 | `pnpm-lock.yaml` | Generated; the only place versions are pinned |
 | `.nvmrc` | Node 24 (R2) |
 | `turbo.json` | `lint`, `typecheck`, `test`, `test:integration`, `build` pipelines with cache (R3) |
-| `tsconfig.base.json` | `strict`, `noUncheckedIndexedAccess`, ESM resolution (R4) |
+| `.npmrc` | `engine-strict=true` so Node 24 is enforced, not just advised (R2) |
 | `.prettierrc` | Keep `printWidth: 100`, add Tailwind plugin (R7) |
 | `.prettierignore` | Skip lockfile, build output, migrations |
 | `eslint.config.mjs` | Root flat config composing `packages/config` presets (R8, R19) |
-| `vitest.workspace.ts` | Unit + integration projects across packages (R9, R10) |
+| `vitest.config.ts` | Root `test.projects` so `pnpm vitest run <path>` works from the root (R9, R10). *Diverged:* Vitest 3.2+ replaced `vitest.workspace.ts` with `projects`. |
 | `lefthook.yml` | `commit-msg` → commitlint, `pre-commit` → Prettier on staged files (R12) |
 | `commitlint.config.mjs` | Conventional Commits preset (R12) |
 | `docker-compose.yml` | `web`, `postgres`, `minio`, named volumes, healthchecks (R29) |
-| `.env.example` | Every env var incl. both auth secrets and telemetry flags (R16, R30) |
+| `.env.example` | Every env var incl. both auth secrets and telemetry flags (R16, R30). *Diverged:* also `TURBO_TELEMETRY_DISABLED=1` — Turborepo phones home too (seen during step 3). |
 | `.gitignore` | Add `coverage/`, `playwright-report/`, `test-results/` |
 | `LICENSE`, `README.md`, `CONTRIBUTING.md`, `SECURITY.md`, `CODE_OF_CONDUCT.md` | OSS hygiene (R32) |
 | `CLAUDE.md` | Add `pnpm lint`, `pnpm format:check`, `pnpm test:integration` to Commands (R35) |
@@ -43,6 +43,7 @@ Requirement numbers (R1–R35) refer to spec.md.
 | Path | Reason |
 |---|---|
 | `packages/config/package.json` | Private shared presets package |
+| `packages/config/tsconfig/base.json` | The single shared base: `strict`, `noUncheckedIndexedAccess`, ESM resolution (R4). *Diverged:* lives here, not at the root, because presets resolved through the `node_modules` symlink cannot reach a root file by relative path. |
 | `packages/config/tsconfig/{library,nextjs}.json` | Extend base for libs and the Next app (R4) |
 | `packages/config/eslint/{base,react,next}.mjs` | Type-aware TS, React Hooks, Next rules (R8) |
 
@@ -53,6 +54,7 @@ Requirement numbers (R1–R35) refer to spec.md.
 | `packages/*/package.json` | `"type": "module"`, `exports`, `files`, tsdown build, no React in schema deps (R5, R6) |
 | `packages/*/tsconfig.json` | Extends library preset |
 | `packages/*/tsdown.config.ts` | ESM + `.d.ts` (R5) |
+| `packages/*/vitest.config.ts`, `packages/*/turbo.json` | Per-package tests; `test` depends on the package's own `build` so the dist test has output |
 | `packages/*/src/index.ts` | Placeholder export (`VERSION`) so the build has an entry |
 | `packages/*/test/dist.test.ts` | Imports the built `dist` entry (R5 proof) |
 | `packages/schema/test/no-react.test.ts` | Asserts no `react` in deps/peerDeps (R6 proof) |

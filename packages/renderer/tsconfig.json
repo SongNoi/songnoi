@@ -1,0 +1,4 @@
+{
+  "extends": "@songnoi/config/tsconfig/library.json",
+  "include": ["src", "test", "*.config.ts"]
+}
