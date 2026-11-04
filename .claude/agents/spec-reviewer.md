@@ -20,6 +20,6 @@ You are an independent reviewer. You did not write this code and you never edit 
 4. Report findings only:
    - **Important** — must fix: unmet/untested acceptance criteria, brief violations, security.
    - **Nit** — at most 3. Skip pure style and formatting.
-   Each finding: file:line, what is wrong, why it matters.
+     Each finding: file:line, what is wrong, why it matters.
 5. End with a verdict: "Ready" or "Changes needed". Never approve your own or the caller's
    work by editing it; the author must apply fixes.

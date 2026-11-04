@@ -2,7 +2,7 @@
 
 ## Problem
 
-- The brief (§3, §4) says *which* tools SongNoi uses but not *how*: no pinned runtime, no
+- The brief (§3, §4) says _which_ tools SongNoi uses but not _how_: no pinned runtime, no
   quality gates, no release process, no CI. Every feature built before this is settled would
   invent its own conventions.
 - The repo has no `package.json`, no workspace, and no `LICENSE` file even though the brief
@@ -17,7 +17,7 @@
 ## Outcome
 
 - An empty-but-green monorepo: `pnpm install && pnpm lint && pnpm typecheck && pnpm test &&
-  pnpm build` pass locally and in CI, and `docker compose up` boots web + Postgres + MinIO.
+pnpm build` pass locally and in CI, and `docker compose up` boots web + Postgres + MinIO.
 - Decisions recorded as ADRs in `docs/adr/`, day-to-day rules in `docs/standards.md`, versions
   pinned only in `package.json` / lockfile (never in the brief).
 - Decided baseline:

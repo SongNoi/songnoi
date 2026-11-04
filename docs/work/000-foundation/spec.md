@@ -273,7 +273,7 @@ item builds on.
 4. **Resolved — Dependabot instead of Renovate** (intent listed Renovate): Dependabot is built
    into GitHub and needs no third-party app, which fits "Self-host first" better.
 5. **`next/font/google` downloads Kanit at build time.** Runtime is fully offline, but an
-   offline *build* will fail. Acceptable for MVP; if offline builds become a need, switch to
+   offline _build_ will fail. Acceptable for MVP; if offline builds become a need, switch to
    bundling the font files (`next/font/local`).
 6. **Architecture changes the brief's "how", not its "what".** Clean architecture layers live
    inside `apps/web` (no new `packages/core`), so brief §4 needs no change. Route handlers

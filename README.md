@@ -27,13 +27,13 @@ docker compose up -d postgres minio
 pnpm dev
 ```
 
-| Command | What it does |
-|---|---|
-| `pnpm lint` / `pnpm format:check` | ESLint and Prettier |
-| `pnpm typecheck` | TypeScript across the monorepo |
-| `pnpm test` | Unit tests (no database needed) |
-| `pnpm test:integration` | Integration tests against Postgres |
-| `pnpm build` | Production build |
+| Command                           | What it does                       |
+| --------------------------------- | ---------------------------------- |
+| `pnpm lint` / `pnpm format:check` | ESLint and Prettier                |
+| `pnpm typecheck`                  | TypeScript across the monorepo     |
+| `pnpm test`                       | Unit tests (no database needed)    |
+| `pnpm test:integration`           | Integration tests against Postgres |
+| `pnpm build`                      | Production build                   |
 
 ## Repository layout
 
