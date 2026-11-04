@@ -15,9 +15,11 @@
     "test:integration": "turbo run test:integration",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "prepare": "lefthook install"
+    "prepare": "lefthook install",
+    "changeset": "changeset"
   },
   "devDependencies": {
+    "@changesets/cli": "3.0.3",
     "@commitlint/cli": "21.2.4",
     "@commitlint/config-conventional": "21.2.4",
     "@songnoi/config": "workspace:*",
