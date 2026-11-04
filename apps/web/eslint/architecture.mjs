@@ -90,6 +90,7 @@ const policies = [
       el("shared-infrastructure"), // queries.ts may read with Prisma directly (R40)
       el("kernel"),
       el("composition"),
+      el("i18n"),
       external(),
     ],
   },

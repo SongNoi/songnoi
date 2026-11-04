@@ -3,7 +3,8 @@
 import { useLocale, useTranslations } from "next-intl"
 import { useRouter } from "next/navigation"
 import { useTransition } from "react"
-import { LOCALE_COOKIE, LOCALES, type Locale } from "@/i18n/config"
+import { LOCALES, type Locale } from "@/i18n/config"
+import { setLocale } from "@/modules/preferences/actions"
 
 export function LocaleSwitcher() {
   const t = useTranslations("common")
@@ -12,9 +13,9 @@ export function LocaleSwitcher() {
   const [pending, startTransition] = useTransition()
 
   function change(next: Locale) {
-    document.cookie = `${LOCALE_COOKIE}=${next}; path=/; max-age=31536000; samesite=lax`
-    startTransition(() => {
-      router.refresh()
+    startTransition(async () => {
+      const result = await setLocale({ locale: next })
+      if (result.ok) router.refresh()
     })
   }
 
