@@ -12,6 +12,9 @@ Input: `docs/work/<NNN-slug>/` (default: newest folder). Requires `spec.md`, `pl
 
 1. Delegate to the `artifact-analyzer` subagent with the folder path. Do not analyse it
    yourself — an independent read catches what the author misses.
+   Choose its `model` and `effort` from "Subagent model and effort" in
+   `docs/work/README.md` (default, escalate for high-risk areas, or light work) and pass them
+   to the Agent tool; say which you chose and why. An explicit user request overrides it.
 2. Relay its report unchanged: findings table (ID, category, severity, location, summary,
    recommendation), coverage summary and constitution alignment.
 3. Do **not** edit any file. Offer remediations, each pointing to the step that owns the

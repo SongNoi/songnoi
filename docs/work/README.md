@@ -35,6 +35,34 @@ Rules:
 - Small chores (deps, typos, config) may skip straight to a commit.
 - `000-foundation` predates this process: it has no `tasks.md` and follows its `plan.md` Order.
 
+## Subagent model and effort
+
+Each subagent has a default `model` and `effort` in its frontmatter, sized for a typical
+feature. The skill that calls it (`/analyze`, `/converge`, `/review`) picks an override per run
+from the table below and states the choice and the reason in its reply.
+
+| Agent                 | Default         | Escalate to  | Light work      |
+| --------------------- | --------------- | ------------ | --------------- |
+| `artifact-analyzer`   | sonnet · medium | opus · high  | sonnet · low    |
+| `convergence-auditor` | sonnet · high   | opus · high  | sonnet · medium |
+| `spec-reviewer`       | opus · high     | opus · xhigh | sonnet · medium |
+
+**Escalate** when the work touches any high-risk area:
+
+- auth or permissions (`modules/auth`, `defineAction`, guards, access modes);
+- the Form Schema or `defineField` (`packages/schema`);
+- Prisma schema/migrations or the `Response` + `Answer` transaction;
+- file upload/download or any route handler;
+- a large feature: more than 20 requirements or more than 40 tasks.
+
+**Light work** applies to docs-only, config-only or chore changes with no runtime code.
+
+Rules:
+
+- The user's explicit request always wins (e.g. "review with opus at max effort").
+- `max` effort is used only when the user asks for it.
+- When in doubt, keep the default; never go below it for a high-risk area.
+
 Subagents in `.claude/agents/`: `artifact-analyzer` (read-only, no shell), `convergence-auditor`
 and `spec-reviewer` (read-only; shell limited to git reads and tests by
 `.claude/hooks/readonly-bash-guard.mjs`).

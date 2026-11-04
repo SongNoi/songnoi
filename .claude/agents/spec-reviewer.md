@@ -1,6 +1,8 @@
 ---
 name: spec-reviewer
 description: Read-only reviewer. Use after /implement and /converge on a docs/work/<NNN-slug> feature to check the current diff against its spec.md, tasks.md, REVIEW.md, the constitution and the brief.
+model: opus
+effort: high
 tools: Read, Grep, Glob, Bash
 disallowedTools: Edit, Write, NotebookEdit
 hooks:

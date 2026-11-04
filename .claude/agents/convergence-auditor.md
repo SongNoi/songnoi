@@ -1,6 +1,8 @@
 ---
 name: convergence-auditor
 description: Read-only audit after /implement that compares the codebase with a docs/work/<NNN-slug>/ spec, plan and tasks and proposes remaining tasks. Used by /converge.
+model: sonnet
+effort: high
 tools: Read, Grep, Glob, Bash
 disallowedTools: Edit, Write, NotebookEdit
 hooks:

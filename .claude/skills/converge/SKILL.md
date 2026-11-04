@@ -12,6 +12,9 @@ the current `tasks.md`.
 
 1. Delegate to the `convergence-auditor` subagent with the folder path. It is read-only and
    returns severity-graded findings plus proposed tasks.
+   Choose its `model` and `effort` from "Subagent model and effort" in
+   `docs/work/README.md` (default, escalate for high-risk areas, or light work) and pass them
+   to the Agent tool; say which you chose and why. An explicit user request overrides it.
 2. Print its findings summary.
 3. Resolve to exactly one outcome:
    - **Converged** — no findings that need work. Leave `tasks.md` byte-for-byte unchanged and

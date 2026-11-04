@@ -1,6 +1,8 @@
 ---
 name: artifact-analyzer
 description: Read-only cross-artifact consistency analysis of docs/work/<NNN-slug>/ (spec.md, plan.md, tasks.md) against the constitution, before implementation. Used by /analyze.
+model: sonnet
+effort: medium
 tools: Read, Grep, Glob
 disallowedTools: Edit, Write, NotebookEdit, Bash
 ---
