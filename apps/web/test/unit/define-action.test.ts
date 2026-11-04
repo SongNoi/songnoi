@@ -94,6 +94,16 @@ describe("defineAction error handling", () => {
     expect(logError).not.toHaveBeenCalled()
   })
 
+  it("fails closed for an unknown auth mode", async () => {
+    const action = defineAction({
+      auth: "anyone" as "public",
+      input: z.object({}),
+      handler: () => "should not run",
+    })
+    const result = await action({})
+    expect(!result.ok && result.error.code).toBe("INTERNAL")
+  })
+
   it("public actions do not consult either guard", async () => {
     const action = defineAction({ auth: "public", input: z.object({}), handler: () => 1 })
     expect(await action({})).toEqual({ ok: true, data: 1 })

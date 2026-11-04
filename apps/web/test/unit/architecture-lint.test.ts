@@ -2,6 +2,7 @@ import path from "node:path"
 import { ESLint } from "eslint"
 import tseslint from "typescript-eslint"
 import { beforeAll, describe, expect, it } from "vitest"
+import { serverActions } from "@songnoi/config/eslint/server-actions"
 import { architecture } from "../../eslint/architecture.mjs"
 
 // Lints a fixture tree that mirrors src/ with the exact rules apps/web uses (spec R19, R37, R39).
@@ -16,13 +17,16 @@ beforeAll(() => {
     overrideConfigFile: true,
     overrideConfig: [
       { files: ["**/*.{ts,tsx}"], languageOptions: { parser: tseslint.parser } },
+      // Same order as the real config: the shared "use server" ban, then the architecture rules.
+      ...serverActions,
       ...architecture({ rootPath: fixtureRoot, tsconfig: path.join(appRoot, "tsconfig.json") }),
     ],
   })
 })
 
 async function errorsFor(file: string) {
-  const [result] = await eslint.lintFiles([path.join(fixtureRoot, "src", file)])
+  const target = file.startsWith("/") ? file.slice(1) : path.join("src", file)
+  const [result] = await eslint.lintFiles([path.join(fixtureRoot, target)])
   return (result?.messages ?? []).map((m) => `${m.ruleId ?? "fatal"}: ${m.message}`)
 }
 
@@ -73,6 +77,13 @@ describe("forbidden edges", () => {
       "no-restricted-syntax",
     ],
     ["export * from actions.ts", "modules/reexportall/actions.ts", "no-restricted-syntax"],
+    ['"use server" file outside src/', "/server-actions.ts", "no-restricted-syntax"],
+    ["`export let` action (reassignable)", "modules/letexport/actions.ts", "no-restricted-syntax"],
+    [
+      "local defineAction shadowing the real one",
+      "modules/shadow/actions.ts",
+      "no-restricted-syntax",
+    ],
     [
       "module → other module internals",
       "modules/demo/application/bad-cross-module.ts",

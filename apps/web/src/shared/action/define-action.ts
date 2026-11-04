@@ -30,8 +30,11 @@ async function authenticate<A extends ActionAuth>(auth: A): Promise<ActionContex
       return { auth, session: await requireAdmin() } as ActionContext<A>
     case "respondent":
       return { auth, session: await requireRespondent() } as ActionContext<A>
-    default:
+    case "public":
       return { auth: "public", session: null } as ActionContext<A>
+    default:
+      // Fail closed: an unknown value (e.g. from an untyped caller) never means "public".
+      throw new Error(`defineAction: unknown auth mode "${String(auth)}"`)
   }
 }
 

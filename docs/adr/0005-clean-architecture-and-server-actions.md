@@ -42,9 +42,12 @@ env.ts · i18n/ · instrumentation.ts
 `auth` (`"admin" | "respondent" | "public"`) is required at the type level; the wrapper runs
 the guard, validates input with Zod and always returns `ActionResult`, while letting Next.js
 `redirect()` / `notFound()` propagate. Lint rejects every other way to create an endpoint:
-`"use server"` at file level outside `actions.ts`, inline `"use server"` anywhere, and in
-`actions.ts` any export that is not `export const x = defineAction(...)` — including
-`export { x }`, `export { x } from` and `export *`.
+`"use server"` at file level anywhere except `src/modules/*/actions.ts` (the ban lives in the
+shared `@songnoi/config` preset, so it covers every package and files outside `src/`), inline
+`"use server"` anywhere, and in `actions.ts` any export that is not
+`export const x = defineAction(...)` — including `export let`, `export { x }`,
+`export { x } from`, `export *` and a locally shadowed `defineAction`. `defineAction` fails
+closed on an unknown `auth` value.
 
 **Reads** happen in Server Components through `queries.ts` (CQRS-lite): no use case or
 repository just to pass a read through.

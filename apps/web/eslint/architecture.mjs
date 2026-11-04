@@ -1,5 +1,6 @@
 // Clean-architecture guardrails for apps/web (spec R19, R37, R39; ADR 0005).
 // Exported as a function so tests can lint fixture trees with the exact same rules.
+import { DEFINE_ACTION_ONLY, USE_SERVER_INLINE } from "@songnoi/config/eslint/server-actions"
 import boundaries from "eslint-plugin-boundaries"
 
 const ROUTE_GROUP_ADMIN = "src/app/\\(admin\\)"
@@ -180,9 +181,6 @@ const policies = [
   },
 ]
 
-const USE_SERVER_INLINE = ":function > BlockStatement > ExpressionStatement[directive='use server']"
-const USE_SERVER_FILE = "Program > ExpressionStatement[directive='use server']"
-const DEFINE_ACTION_ONLY = "Create Server Actions with defineAction in a module's actions.ts (R39)."
 const EXPORT_SHAPE = "Export Server Actions as `export const x = defineAction({...})` (R39)."
 
 /**
@@ -216,16 +214,11 @@ export function architecture({ rootPath, tsconfig, files = ["src/**/*.{ts,tsx,js
           },
         ],
         "boundaries/no-unknown-files": "error",
-        // Any "use server" outside actions.ts creates an unguarded, unvalidated endpoint (R39).
-        "no-restricted-syntax": [
-          "error",
-          { selector: USE_SERVER_INLINE, message: DEFINE_ACTION_ONLY },
-          { selector: USE_SERVER_FILE, message: DEFINE_ACTION_ONLY },
-        ],
       },
     },
     {
-      files: files.map(() => "src/modules/*/actions.ts"),
+      // The "use server" bans for every other file come from @songnoi/config (serverActions).
+      files: ["src/modules/*/actions.ts"],
       rules: {
         "no-restricted-syntax": [
           "error",
@@ -236,6 +229,16 @@ export function architecture({ rootPath, tsconfig, files = ["src/**/*.{ts,tsx,js
             selector:
               "ExportNamedDeclaration > VariableDeclaration > VariableDeclarator:not([init.type='CallExpression'][init.callee.name='defineAction'])",
             message: EXPORT_SHAPE,
+          },
+          // `export let x = defineAction(...)` can be reassigned to an unguarded function.
+          {
+            selector: "ExportNamedDeclaration > VariableDeclaration[kind!='const']",
+            message: EXPORT_SHAPE,
+          },
+          // A local `defineAction` would shadow the real wrapper.
+          {
+            selector:
+              "VariableDeclarator[id.name='defineAction'], FunctionDeclaration[id.name='defineAction'], ImportSpecifier[local.name='defineAction'][imported.name!='defineAction']",
           },
           // `export { x }`, `export { x } from "..."` and `export *` would publish anything as an
           // action, e.g. a raw use case with no guard.

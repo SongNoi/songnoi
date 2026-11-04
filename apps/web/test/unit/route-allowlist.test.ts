@@ -17,7 +17,7 @@ const isAllowed = (file: string) => ALLOWED_ROUTE_HANDLERS.some((re) => re.test(
 
 describe("route handler allow-list", () => {
   const appDir = path.resolve(import.meta.dirname, "../../src/app")
-  const routes = globSync("**/route.{ts,tsx,js}", { cwd: appDir }).map((f) =>
+  const routes = globSync("**/route.{ts,tsx,js,jsx,mts,mjs}", { cwd: appDir }).map((f) =>
     f.split(path.sep).join("/"),
   )
 

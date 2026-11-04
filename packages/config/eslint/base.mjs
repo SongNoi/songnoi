@@ -2,6 +2,7 @@
 import js from "@eslint/js"
 import globals from "globals"
 import tseslint from "typescript-eslint"
+import { serverActions } from "./server-actions.mjs"
 
 /** @param {{ tsconfigRootDir: string }} options */
 export function base({ tsconfigRootDir }) {
@@ -44,5 +45,7 @@ export function base({ tsconfigRootDir }) {
       files: ["**/*.{js,mjs,cjs}"],
       extends: [tseslint.configs.disableTypeChecked],
     },
+    // Applies to every linted file in every package (apps/web relaxes it for actions.ts only).
+    ...serverActions,
   )
 }

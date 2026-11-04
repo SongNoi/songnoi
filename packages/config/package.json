@@ -10,7 +10,11 @@
     "./eslint/base": "./eslint/base.mjs",
     "./eslint/react": "./eslint/react.mjs",
     "./eslint/next": "./eslint/next.mjs",
-    "./prettier": "./prettier.mjs"
+    "./prettier": "./prettier.mjs",
+    "./eslint/server-actions": {
+      "types": "./eslint/server-actions.d.mts",
+      "default": "./eslint/server-actions.mjs"
+    }
   },
   "dependencies": {
     "@eslint/js": "10.0.1",
