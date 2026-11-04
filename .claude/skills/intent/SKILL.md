@@ -9,7 +9,7 @@ disable-model-invocation: true
 
 Goal: write `docs/work/<NNN-slug>/intent.md` for the idea in `$ARGUMENTS`.
 
-1. Read `docs/project-brief.md` so your questions are grounded in it.
+1. Read `docs/project-brief.md` and `docs/constitution.md` so your questions are grounded in them.
 2. Interview the user with multiple-choice questions (AskUserQuestion), a few at a time,
    until you can fill every section below. Offer a recommended option first. Ask about
    problem, desired outcome, users (admin vs respondent), constraints and roadmap fit.
