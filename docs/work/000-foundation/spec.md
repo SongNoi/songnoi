@@ -51,11 +51,15 @@ schema design.
 16. Env: `apps/web/src/env.ts` validates `process.env` with Zod at startup; a missing or
     invalid variable stops the server with a message naming the variable. `.env.example`
     lists every variable.
-17. Errors: one `AppError` shape `{ code, message, details? }` used by Server Actions and REST
-    route handlers; a helper converts thrown `ZodError` into `code: "VALIDATION_FAILED"`.
+17. Errors: `shared/kernel` defines `AppError { code, message, details? }` and
+    `ActionResult<T> = { ok: true, data: T } | { ok: false, error: AppError }`. Server Actions
+    always return `ActionResult`; route handlers return `AppError` as JSON with a matching
+    HTTP status. A thrown `ZodError` maps to `code: "VALIDATION_FAILED"`; any unexpected error
+    maps to `code: "INTERNAL"` with a generic message (details are logged, never sent).
 18. Logging: pino writing JSON to stdout; no remote transport; log level from env.
 19. Routes: `app/(admin)/…` and `app/(respond)/…` route groups; nothing under `(respond)`
-    imports from `(admin)` (enforced by an ESLint `no-restricted-imports` rule).
+    imports from `(admin)`, and `modules/auth/respondent` never imports `modules/auth/admin`
+    or the reverse (enforced by `eslint-plugin-boundaries`, see R37).
 20. Health: `GET /api/health` returns `200 {"status":"ok"}` when Postgres is reachable and
     `503` otherwise; Docker Compose uses it as the web healthcheck.
 
@@ -100,25 +104,76 @@ schema design.
 32. Root files: `LICENSE` (MIT, holder "SongNoi contributors"), `README.md` (first line per
     brief §0), `CONTRIBUTING.md`, `SECURITY.md`, `CODE_OF_CONDUCT.md` (Contributor Covenant
     2.1), `.github/ISSUE_TEMPLATE/*`, `.github/pull_request_template.md`.
-33. `docs/standards.md` describes the day-to-day rules in requirements 7–20 and 24–28.
+33. `docs/standards.md` describes the day-to-day rules in requirements 7–20, 24–28 and 36–40.
 34. ADRs in `docs/adr/` (format: Context / Decision / Consequences): `0001` monorepo and
-    toolchain, `0002` separate auth instances, `0003` i18n approach, `0004` ESM-only packages.
-35. `CLAUDE.md` commands list gains `pnpm lint` and `pnpm format:check`.
+    toolchain, `0002` separate auth instances, `0003` i18n approach, `0004` ESM-only packages,
+    `0005` clean architecture and Server Actions.
+35. `CLAUDE.md` commands list gains `pnpm lint` and `pnpm format:check`; `.claude/rules/`
+    gains an `architecture.md` rule scoped to `apps/web/src/**` summarising R36–R40.
+
+### Architecture (ADR 0005)
+
+36. Layout of `apps/web/src`: `app/` (presentation: routes and UI only), `modules/<feature>/`
+    (`domain/`, `application/`, `infrastructure/`, `actions.ts`, `queries.ts`), `shared/`
+    (`kernel/`, `action/`, `infrastructure/`, `ui/`), `composition.ts`, `env.ts`, `i18n/`.
+    This scaffold creates `shared/` and `modules/auth/{admin,respondent}` only; feature
+    modules (`forms`, `responses`, `files`) arrive with their own work items.
+37. Dependency rule, enforced by `eslint-plugin-boundaries`; arrows point inward only:
+    - `domain` may import `@songnoi/schema`, `zod`, `shared/kernel`, and nothing else
+      (no Prisma, no Next, no React).
+    - `application` may import its own `domain` and `shared/kernel`.
+    - `infrastructure` may import its own `domain`/`application` ports and
+      `shared/infrastructure`.
+    - `actions.ts` / `queries.ts` may import their module's `application`, `shared/action`,
+      `shared/kernel`, and `composition.ts`.
+    - `app/` may import `actions.ts`, `queries.ts`, `shared/ui`, `i18n/` — never a module's
+      `domain`, `application` or `infrastructure` directly.
+    - A module never imports another module's internals; cross-module use goes through the
+      other module's `application` exports.
+38. Mutations use Server Actions only. Route handlers (`route.ts`) are allowed only at:
+    `api/auth/admin/[...all]`, `api/auth/respondent/[...all]`, `api/health`, and the reserved
+    paths `api/files/**` (streamed upload/download through the app — no presigned URLs, so
+    MinIO is never exposed), `api/forms/[formId]/export` (CSV download) and `api/v1/**`
+    (external REST API / embed, brief §8). A test fails if a `route.ts` exists anywhere else.
+39. Every Server Action is created with `defineAction({ auth, input, handler })`:
+    - `auth` is required and is one of `"admin" | "respondent" | "public"`; omitting it is a
+      type error. `"admin"`/`"respondent"` run the matching guard from R22 before the handler.
+    - `input` is a Zod schema; invalid input returns `VALIDATION_FAILED` without calling the
+      handler.
+    - It returns `ActionResult` (R17) and never throws to the client.
+    - A bare `"use server"` export outside `defineAction` is an ESLint error in `actions.ts`.
+40. Reads: Server Components call `queries.ts` (marked `server-only`) directly; Server Actions
+    are not used for reads. Queries may call Prisma directly (CQRS-lite); writes always go
+    through `application` use cases. Use cases are plain functions receiving their
+    dependencies; `composition.ts` wires them (no DI container library).
 
 ## Design
 
 ```
 songnoi/
 ├─ apps/web/                      Next.js App Router (brief §3)
-│  ├─ src/app/(admin)/            admin pages, guarded by requireAdmin()
-│  ├─ src/app/(respond)/          respondent pages, guarded per access mode
-│  ├─ src/app/api/auth/admin/[...all]/route.ts       → adminAuth.handler
-│  ├─ src/app/api/auth/respondent/[...all]/route.ts  → respondentAuth.handler
-│  ├─ src/app/api/health/route.ts
-│  ├─ src/server/{auth,db,env,errors,logger}.ts
-│  ├─ src/i18n/{config,request,resolve-locale}.ts
+│  ├─ src/
+│  │  ├─ app/                                 presentation only
+│  │  │  ├─ (admin)/                          admin pages, guarded by requireAdmin()
+│  │  │  ├─ (respond)/                        respondent pages, guarded per access mode
+│  │  │  └─ api/                              route handlers: allow-listed paths only (R38)
+│  │  │     ├─ auth/admin/[...all]/route.ts       → adminAuth.handler
+│  │  │     ├─ auth/respondent/[...all]/route.ts  → respondentAuth.handler
+│  │  │     └─ health/route.ts
+│  │  ├─ modules/
+│  │  │  └─ auth/
+│  │  │     ├─ admin/{instance,guard}.ts      adminAuth, requireAdmin()
+│  │  │     └─ respondent/{instance,guard}.ts respondentAuth, requireRespondent()
+│  │  ├─ shared/
+│  │  │  ├─ kernel/{app-error,result}.ts      framework-free, usable by every layer
+│  │  │  ├─ action/define-action.ts           the only way to create a Server Action
+│  │  │  ├─ infrastructure/{db,logger}.ts     Prisma client, pino
+│  │  │  └─ ui/                               shadcn components (none yet)
+│  │  ├─ composition.ts                       wires use cases to adapters
+│  │  ├─ env.ts
+│  │  └─ i18n/{config,request,resolve-locale}.ts
 │  ├─ messages/{en,th}.json
-│  └─ prisma/schema.prisma        auth tables only
+│  └─ prisma/schema.prisma                    auth tables only
 ├─ packages/schema/               empty ESM package (brief §4)
 ├─ packages/renderer/             empty ESM package, React peer dep
 ├─ packages/config/               tsconfig / eslint / prettier presets
@@ -130,8 +185,16 @@ songnoi/
 **Auth flow.** Each instance is a separate `betterAuth({...})` call sharing one Prisma client
 but mapping to its own tables via `modelName`. Separate cookie prefixes mean the browser
 sends both cookies, but each instance only parses its own; separate secrets mean a cookie
-forged for one cannot be verified by the other. Guards live in `src/server/auth.ts`; pages
-never call `auth.api.getSession` directly.
+forged for one cannot be verified by the other. Guards live in
+`modules/auth/{admin,respondent}/guard.ts`; pages never call `auth.api.getSession` directly.
+
+**Architecture flow (future feature, for orientation).** A write travels
+`client component → actions.ts (defineAction: guard → Zod → use case) → application →
+domain rules → infrastructure port (Prisma)` and returns `ActionResult`. A read travels
+`Server Component → queries.ts → Prisma`. `packages/schema` is the innermost domain core
+shared by every module, which keeps brief §2 "Schema is the hero" literal. The layers live
+inside `apps/web` rather than a new `packages/core`, so brief §4 is unchanged; extracting them
+later is cheap because R37 already forbids outward imports.
 
 **i18n flow.** `src/i18n/request.ts` (next-intl `getRequestConfig`) picks the locale: for
 admin requests from the cookie; for respondent pages the page passes the form's locale through
@@ -162,8 +225,20 @@ item builds on.
 - [ ] `.github/dependabot.yml` covers npm, github-actions and docker. (R14)
 - [ ] `pnpm changeset status` works and `apps/web` is `private: true`. (R15)
 - [ ] Unit test: `env.ts` throws naming the variable when `DATABASE_URL` is missing. (R16)
-- [ ] Unit test: a `ZodError` becomes `AppError` with `code: "VALIDATION_FAILED"`. (R17)
+- [ ] Unit test: a `ZodError` becomes `AppError` with `code: "VALIDATION_FAILED"`, and an
+      unexpected error becomes `INTERNAL` without leaking its message. (R17)
 - [ ] Lint test: importing `(admin)` code from a `(respond)` file is an ESLint error. (R19)
+- [ ] Lint test: fixtures for each forbidden edge in R37 (domain → Prisma, domain → Next,
+      app → module `domain`, module A → module B internals) are ESLint errors, and an allowed
+      edge passes. (R37)
+- [ ] Unit test: a `route.ts` outside the R38 allow-list fails the route allow-list test.
+      (R38)
+- [ ] Type test (`expectTypeOf` / `@ts-expect-error`): `defineAction` without `auth` does not
+      compile. (R39)
+- [ ] Unit test: `defineAction` with `auth: "admin"` returns `UNAUTHORIZED` for a respondent or
+      anonymous session, returns `VALIDATION_FAILED` for bad input without calling the
+      handler, and returns `{ ok: true }` for a valid admin call. (R39)
+- [ ] Lint test: a bare `"use server"` export in `actions.ts` is an ESLint error. (R39)
 - [ ] Integration test: `/api/health` is 200 with Postgres up and 503 with a bad
       `DATABASE_URL`. (R20)
 - [ ] Integration test: an admin session cookie gets 401 from `requireRespondent()`, a
@@ -200,4 +275,8 @@ item builds on.
 5. **`next/font/google` downloads Kanit at build time.** Runtime is fully offline, but an
    offline *build* will fail. Acceptable for MVP; if offline builds become a need, switch to
    bundling the font files (`next/font/local`).
-6. No BI creep and no custom condition language. Nothing else conflicts with brief §2 or §11.
+6. **Architecture changes the brief's "how", not its "what".** Clean architecture layers live
+   inside `apps/web` (no new `packages/core`), so brief §4 needs no change. Route handlers
+   remain for the external REST API and embed (brief §8), so the "Server Actions only" rule
+   has the explicit allow-list in R38 rather than being absolute.
+7. No BI creep and no custom condition language. Nothing else conflicts with brief §2 or §11.

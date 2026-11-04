@@ -63,16 +63,22 @@ Requirement numbers (R1–R35) refer to spec.md.
 |---|---|
 | `apps/web/package.json` | `private: true`, scripts incl. `test:integration`, `e2e` (R15) |
 | `apps/web/next.config.ts` | `output: "standalone"`, next-intl plugin (R24, R29) |
-| `apps/web/tsconfig.json`, `eslint.config.mjs` | Next preset + `no-restricted-imports` `(respond)` → `(admin)` (R19) |
+| `apps/web/tsconfig.json` | Next preset, `@/*` path alias to `src/*` |
+| `apps/web/eslint.config.mjs` | `eslint-plugin-boundaries` element types + dependency rules for R19/R37; bare `"use server"` ban in `actions.ts` (R39) |
 | `apps/web/postcss.config.mjs`, `src/app/globals.css` | Tailwind v4; Thai-friendly line-height (UI rules) |
 | `apps/web/components.json` | shadcn/ui config (brief §3); no components added yet |
 | `apps/web/src/env.ts` | Zod env schema, fails fast naming the variable (R16) |
-| `apps/web/src/server/errors.ts` | `AppError` + `fromZodError` (R17) |
-| `apps/web/src/server/logger.ts` | pino → stdout, level from env (R18) |
-| `apps/web/src/server/db.ts` | Prisma client singleton |
-| `apps/web/src/server/auth/admin.ts` | `adminAuth` instance (R21, R23) |
-| `apps/web/src/server/auth/respondent.ts` | `respondentAuth` instance (R21, R23) |
-| `apps/web/src/server/auth/guards.ts` | `requireAdmin()`, `requireRespondent()` (R22) |
+| `apps/web/src/shared/kernel/app-error.ts` | `AppError`, error codes, `toAppError` (Zod → `VALIDATION_FAILED`, unknown → `INTERNAL`) (R17) |
+| `apps/web/src/shared/kernel/result.ts` | `ActionResult<T>`, `ok()`, `fail()` (R17) |
+| `apps/web/src/shared/action/define-action.ts` | `defineAction({ auth, input, handler })` (R39) |
+| `apps/web/src/shared/infrastructure/logger.ts` | pino → stdout, level from env (R18) |
+| `apps/web/src/shared/infrastructure/db.ts` | Prisma client singleton |
+| `apps/web/src/shared/ui/.gitkeep` | shadcn target directory (R36) |
+| `apps/web/src/composition.ts` | Wiring point for use cases; exports guards for now (R36, R40) |
+| `apps/web/src/modules/auth/admin/instance.ts` | `adminAuth` instance (R21, R23) |
+| `apps/web/src/modules/auth/admin/guard.ts` | `requireAdmin()` (R22) |
+| `apps/web/src/modules/auth/respondent/instance.ts` | `respondentAuth` instance (R21, R23) |
+| `apps/web/src/modules/auth/respondent/guard.ts` | `requireRespondent()` (R22) |
 | `apps/web/src/app/api/auth/admin/[...all]/route.ts` | Mount admin handler (R21) |
 | `apps/web/src/app/api/auth/respondent/[...all]/route.ts` | Mount respondent handler (R21) |
 | `apps/web/src/app/api/health/route.ts` | DB ping → 200 / 503 (R20) |
@@ -89,8 +95,11 @@ Requirement numbers (R1–R35) refer to spec.md.
 | `apps/web/Dockerfile`, `docker-entrypoint.sh`, `.dockerignore` | Multi-stage standalone image, migrate then serve, telemetry off (R29, R30) |
 | `apps/web/vitest.config.ts` | `unit` and `integration` projects |
 | `apps/web/test/unit/{env,errors,resolve-locale,messages-parity}.test.ts` | R16, R17, R26, R27 |
-| `apps/web/test/unit/route-boundary.test.ts` | Runs ESLint on a fixture to prove R19 |
-| `apps/web/test/fixtures/(respond)/bad-import.tsx` | Fixture that imports from `(admin)` (excluded from normal lint) |
+| `apps/web/test/unit/architecture-lint.test.ts` | Runs ESLint Node API on fixtures to prove R19, R37 and the `"use server"` ban (R39) |
+| `apps/web/test/fixtures/architecture/**` | One fixture per allowed/forbidden edge, mirroring `src/` paths (excluded from normal lint) |
+| `apps/web/test/unit/route-allowlist.test.ts` | Globs `src/app/**/route.ts`, compares with the R38 allow-list |
+| `apps/web/test/unit/define-action.test.ts` | Guard, validation, success and `INTERNAL` paths with mocked guards (R39) |
+| `apps/web/test/unit/define-action.types.test-d.ts` | `@ts-expect-error` when `auth` is omitted (R39), run by Vitest typecheck |
 | `apps/web/test/integration/{setup,health,auth-isolation}.test.ts` | R20, R21, R22 against real Postgres |
 | `apps/web/playwright.config.ts`, `e2e/smoke.spec.ts` | R11, R25, R28, R31 |
 
@@ -103,6 +112,8 @@ Requirement numbers (R1–R35) refer to spec.md.
 | `docs/adr/0002-separate-auth-instances.md` | R34 |
 | `docs/adr/0003-i18n.md` | R34 |
 | `docs/adr/0004-esm-only-packages.md` | R34 |
+| `docs/adr/0005-clean-architecture-and-server-actions.md` | R34, R36–R40 |
+| `.claude/rules/architecture.md` | Path-scoped rule for `apps/web/src/**` summarising R36–R40 (R35) |
 
 ## Order
 
@@ -119,23 +130,31 @@ Each step is one Conventional Commit that leaves `pnpm` checks green.
    `format:check`. Fix anything they flag. (`chore:`)
 5. **Commit hooks** — lefthook + commitlint; verify a bad message is rejected. (`chore:`)
 6. **Next.js app shell** — `apps/web` with App Router, Tailwind v4, shadcn config, Kanit,
-   `(admin)` / `(respond)` route groups, boundary lint rule + its test. (`feat(web)`)
-7. **Server foundations** — `env.ts`, `errors.ts`, `logger.ts` with unit tests. (`feat(web)`)
-8. **i18n** — next-intl config, messages, cookie locale, switcher, `resolveRespondentLocale`,
+   `(admin)` / `(respond)` route groups, the `src/` layout from R36. (`feat(web)`)
+7. **Architecture guardrails** — `eslint-plugin-boundaries` rules, fixtures and
+   `architecture-lint.test.ts`; `route-allowlist.test.ts`. Written before any module code so
+   every later step is checked. (`chore(web)`)
+8. **Server foundations** — `env.ts`, `shared/kernel` (`AppError`, `ActionResult`),
+   `shared/infrastructure/logger.ts`, with unit tests. (`feat(web)`)
+9. **i18n** — next-intl config, messages, cookie locale, switcher, `resolveRespondentLocale`,
    parity test. (`feat(web)`)
-9. **Database + health** — Prisma schema (auth models), first migration, `db.ts`,
-   `/api/health`, integration test project + health test. (`feat(web)`)
-10. **Auth** — two Better Auth instances, route handlers, guards, auth-isolation integration
-    test. (`feat(auth)`)
-11. **Docker** — Dockerfile, entrypoint, `.dockerignore`, `docker-compose.yml`, `.env.example`;
+10. **Database + health** — Prisma schema (auth models), first migration,
+    `shared/infrastructure/db.ts`, `/api/health`, integration test project + health test.
+    (`feat(web)`)
+11. **Auth** — two Better Auth instances and guards in `modules/auth/*`, route handlers,
+    auth-isolation integration test. (`feat(auth)`)
+12. **`defineAction`** — wrapper using the guards from step 11, `composition.ts`, unit + type
+    tests. The locale switcher (step 9) is migrated to a `public` action as the first real
+    user of the wrapper. (`feat(web)`)
+13. **Docker** — Dockerfile, entrypoint, `.dockerignore`, `docker-compose.yml`, `.env.example`;
     verify `docker compose up` + `curl /api/health`. (`feat(docker)`)
-12. **E2E** — Playwright config + smoke test (locale switch, `<html lang>`, no third-party
+14. **E2E** — Playwright config + smoke test (locale switch, `<html lang>`, no third-party
     requests). (`test(web)`)
-13. **CI + Dependabot + Changesets** — `ci.yml`, `dependabot.yml`, `.changeset/`, issue/PR
+15. **CI + Dependabot + Changesets** — `ci.yml`, `dependabot.yml`, `.changeset/`, issue/PR
     templates. (`ci:`)
-14. **Docs** — `docs/standards.md`, four ADRs, `CLAUDE.md` commands, `.claude/settings.json`
-    allow-list. (`docs:`)
-15. **Review** — run `spec-reviewer` against spec.md + REVIEW.md; tick acceptance criteria.
+16. **Docs** — `docs/standards.md`, five ADRs, `.claude/rules/architecture.md`, `CLAUDE.md`
+    commands, `.claude/settings.json` allow-list. (`docs:`)
+17. **Review** — run `spec-reviewer` against spec.md + REVIEW.md; tick acceptance criteria.
 
 ## Risks
 
@@ -149,6 +168,9 @@ Each step is one Conventional Commit that leaves `pnpm` checks green.
 | Integration tests flaky because Postgres isn't ready | `setup.ts` waits on `pg_isready`-style retry; CI service uses `--health-cmd`. |
 | Docker image too large or Prisma engine missing in standalone output | Multi-stage build copies `node_modules/.prisma` explicitly; step 11 verifies with a real `docker compose up`. |
 | `prisma migrate diff` step fails because migration and schema drift | It is exactly what the check is for; migrations are generated, never hand-edited (protect-files hook). |
+| `eslint-plugin-boundaries` mis-classifies Next route-group folders like `(admin)` or catch-all `[...all]` | Fixtures in step 7 cover those exact path shapes; if the plugin can't express a rule, fall back to `no-restricted-imports` for that edge and note it in ADR 0005. |
+| Clean architecture grows boilerplate (repositories/use cases for trivial reads) | R40 CQRS-lite: reads go straight to Prisma in `queries.ts`; `spec-reviewer` flags pass-through use cases. |
+| Server Actions are public POST endpoints; a missing guard leaks admin data | `defineAction` makes `auth` mandatory at the type level and lint bans bare `"use server"` exports (R39). |
 | Scope creep into form features | Spec forbids `defineField` / form models; `spec-reviewer` checks R-list only. |
 | Stop hook typecheck blocks mid-step | Each step ends green before moving on. |
 
@@ -164,8 +186,13 @@ Each step is one Conventional Commit that leaves `pnpm` checks green.
 | Dependabot covers npm, github-actions, docker (R14) | `.github/dependabot.yml` reviewed by `spec-reviewer` |
 | `pnpm changeset status` works; `apps/web` private (R15) | Step 13 manual run + `ci.yml` runs `changeset status` |
 | `env.ts` throws naming `DATABASE_URL` (R16) | `apps/web/test/unit/env.test.ts` |
-| `ZodError` → `VALIDATION_FAILED` (R17) | `apps/web/test/unit/errors.test.ts` |
-| `(respond)` importing `(admin)` is an ESLint error (R19) | `apps/web/test/unit/route-boundary.test.ts` (ESLint Node API on fixture) |
+| `ZodError` → `VALIDATION_FAILED`, unknown → `INTERNAL` without leak (R17) | `apps/web/test/unit/errors.test.ts` |
+| `(respond)` importing `(admin)` is an ESLint error (R19) | `apps/web/test/unit/architecture-lint.test.ts` |
+| Forbidden R37 edges are ESLint errors, allowed edge passes (R37) | `apps/web/test/unit/architecture-lint.test.ts` + `test/fixtures/architecture/**` |
+| `route.ts` outside the allow-list fails (R38) | `apps/web/test/unit/route-allowlist.test.ts` |
+| `defineAction` without `auth` does not compile (R39) | `apps/web/test/unit/define-action.types.test-d.ts` |
+| `defineAction` guard / validation / success paths (R39) | `apps/web/test/unit/define-action.test.ts` |
+| Bare `"use server"` in `actions.ts` is an ESLint error (R39) | `apps/web/test/unit/architecture-lint.test.ts` |
 | `/api/health` 200 / 503 (R20) | `apps/web/test/integration/health.test.ts` |
 | Cross-world sessions get 401, own guard 200 (R21–R22) | `apps/web/test/integration/auth-isolation.test.ts` |
 | `resolveRespondentLocale` behaviour, `Accept-Language` ignored (R26) | `apps/web/test/unit/resolve-locale.test.ts` |
