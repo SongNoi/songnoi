@@ -1,0 +1,17 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: var(--font-kanit), ui-sans-serif, system-ui, sans-serif;
+}
+
+/* Thai needs room above and below the line for vowels and tone marks. */
+html:lang(th) body {
+  line-height: 1.75;
+}
+
+body {
+  line-height: 1.6;
+  /* Break Thai text at word boundaries instead of mid-cluster. */
+  word-break: normal;
+  overflow-wrap: anywhere;
+}

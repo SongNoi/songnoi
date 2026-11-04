@@ -1,0 +1,126 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  # Privacy (constitution §3): no tool telemetry, even in CI.
+  NEXT_TELEMETRY_DISABLED: "1"
+  CHECKPOINT_DISABLE: "1"
+  TURBO_TELEMETRY_DISABLED: "1"
+  DATABASE_URL: postgresql://songnoi:songnoi@localhost:5432/songnoi
+  SHADOW_DATABASE_URL: postgresql://songnoi:songnoi@localhost:5432/songnoi_shadow
+  TEST_DATABASE_URL: postgresql://songnoi:songnoi@localhost:5432/songnoi_test
+
+jobs:
+  checks:
+    name: Checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: songnoi
+          POSTGRES_PASSWORD: songnoi
+          POSTGRES_DB: songnoi
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U songnoi -d songnoi"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Commit messages (Conventional Commits)
+        if: github.event_name == 'pull_request'
+        run: >-
+          pnpm exec commitlint --verbose
+          --from ${{ github.event.pull_request.base.sha }}
+          --to ${{ github.event.pull_request.head.sha }}
+
+      - name: Required project files
+        run: |
+          for f in LICENSE README.md CONTRIBUTING.md SECURITY.md CODE_OF_CONDUCT.md \
+                   .env.example docs/standards.md docs/constitution.md \
+                   .github/pull_request_template.md .github/dependabot.yml; do
+            test -f "$f" || { echo "::error::missing $f"; exit 1; }
+          done
+          grep -q "MIT License" LICENSE
+
+      - name: Telemetry stays off (Dockerfile, .env.example, CI)
+        run: |
+          for f in apps/web/Dockerfile .env.example .github/workflows/ci.yml; do
+            for v in NEXT_TELEMETRY_DISABLED CHECKPOINT_DISABLE; do
+              grep -Eq "${v}[=:] ?\"?1" "$f" || { echo "::error::$v=1 missing in $f"; exit 1; }
+            done
+          done
+
+      - name: Format
+        run: pnpm format:check
+      - name: Lint (incl. architecture boundaries)
+        run: pnpm lint
+      - name: Typecheck
+        run: pnpm typecheck
+      - name: Unit tests
+        run: pnpm test
+
+      - name: Prepare databases
+        run: |
+          psql "$DATABASE_URL" -c "CREATE DATABASE songnoi_shadow" -c "CREATE DATABASE songnoi_test"
+      - name: Migrations match the Prisma schema
+        run: pnpm --filter @songnoi/web db:check
+      - name: Integration tests (Postgres)
+        run: pnpm test:integration
+
+      - name: Build
+        run: pnpm build
+
+      - name: Changesets
+        run: pnpm changeset status --since=origin/main
+        if: github.event_name == 'pull_request'
+
+      - name: Install Playwright browser
+        run: pnpm --filter @songnoi/web exec playwright install --with-deps chromium
+      - name: E2E smoke tests
+        run: pnpm --filter @songnoi/web e2e
+      - uses: actions/upload-artifact@v7
+        if: failure()
+        with:
+          name: playwright-report
+          path: apps/web/test-results
+          retention-days: 7
+
+  docker:
+    name: Docker image
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: docker/setup-buildx-action@v4
+      - uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: apps/web/Dockerfile
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

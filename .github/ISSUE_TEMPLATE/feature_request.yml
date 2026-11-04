@@ -1,0 +1,31 @@
+name: Feature request
+description: Suggest an idea for SongNoi.
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        SongNoi stays small on purpose. Please check the roadmap and non-goals in
+        `docs/project-brief.md` (§10, §11) first — for example, there will be no built-in BI.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem would this solve?
+      description: Describe the pain, not the solution.
+    validations:
+      required: true
+  - type: dropdown
+    id: users
+    attributes:
+      label: Who is it for?
+      options: [Admin (form creator), Respondent (person answering), Self-hoster, Plugin author]
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: Proposed solution
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives you considered

@@ -5,10 +5,15 @@ planning any feature. Never edit it; propose brief changes in your final summary
 
 ## Commands
 
-- `pnpm install` — install workspace deps
+- `pnpm install` — install workspace deps (also git hooks + Prisma client)
+- `pnpm format:check` / `pnpm format` — Prettier
+- `pnpm lint` — ESLint incl. clean-architecture boundaries
 - `pnpm typecheck` — TypeScript across the monorepo
-- `pnpm test` — all tests; one file: `pnpm vitest run <path>`
+- `pnpm test` — unit tests; one file: `pnpm vitest run <path>`
+- `pnpm test:integration` — integration tests against Postgres (`docker compose up -d postgres`)
+- `pnpm --filter @songnoi/web e2e` — Playwright smoke tests (after `pnpm build`)
 - `pnpm build` — production build
+- Standards: `docs/standards.md` · decisions: `docs/adr/`
 
 ## Non-negotiable design rules (brief §2)
 
@@ -19,17 +24,27 @@ planning any feature. Never edit it; propose brief changes in your final summary
 5. No in-house BI: stop at the 3 analytics layers, then hand off to external BI tools.
 6. Small scope that actually works: reach usable before adding breadth.
 
-## Workflow (Plan → Design → Build → Test → Review)
+## Workflow (spec-driven SDLC, see `docs/work/README.md`)
 
-Every feature lives in `docs/work/<NNN-slug>/` and goes through these gates before code:
+Principles every gate checks: `docs/constitution.md` (derived from the brief; amend via
+`/constitution`). Every feature lives in `docs/work/<NNN-slug>/`:
 
 1. `/intent` → `intent.md` (problem, outcome, users, constraints)
-2. `/spec` → `spec.md` (must state roadmap phase: MVP / Phase 2 / Phase 3)
-3. `/impl-plan` → `plan.md` — wait for my approval before writing code
-4. Build + test; if the implementation diverges, update `plan.md` in the same commit
-5. Review with the `spec-reviewer` subagent against `REVIEW.md`; the author never self-approves
+2. `/spec` → `spec.md` (what/why, user stories, must state roadmap phase: MVP / Phase 2 / Phase 3)
+3. `/clarify` → resolve ambiguity in `spec.md` (when needed)
+4. `/impl-plan` → `plan.md` (how) — wait for my approval before writing code
+5. `/checklist` (optional) → `/tasks` → `tasks.md` → `/analyze` must have no CRITICAL/HIGH
+6. `/implement` → build test-first; if it diverges, update `plan.md`/`tasks.md` in the same commit
+7. `/converge` → loop with `/implement` until converged
+8. `/review` → `spec-reviewer` against `REVIEW.md`; the author never self-approves
 
-Small chores (deps, typos, config) may skip intent/spec but still need a clear commit.
+Each step is done by a role subagent — `planner`, `requirements-analyst`, `solution-architect`,
+`developer`, `test-engineer`, plus `artifact-analyzer`, `convergence-auditor`, `spec-reviewer`.
+Each has a default model and effort in its frontmatter; skills choose default / escalate /
+light per run by the rules in `docs/work/README.md` ("Subagent model and effort"), and my
+explicit request always wins. The main session talks to me, runs the gates and commits.
+
+Small chores (deps, typos, config) may skip the gates but still need a clear commit.
 Do not build features from a later roadmap phase than the spec states.
 
 ## Bugs
@@ -41,4 +56,4 @@ Commit a failing test that reproduces the bug first. Then fix it without editing
 - TypeScript `strict`; no `any` without a comment explaining why.
 - Next.js App Router: Server Components by default; `"use client"` only when needed.
 - English for code, comments, docs and commit messages. Conventional Commits.
-- Path-scoped rules live in `.claude/rules/` (schema, db, ui).
+- Path-scoped rules live in `.claude/rules/` (schema, db, ui, architecture).

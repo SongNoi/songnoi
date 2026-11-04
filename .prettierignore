@@ -1,0 +1,12 @@
+pnpm-lock.yaml
+**/dist
+**/.next
+**/.turbo
+**/coverage
+**/playwright-report
+**/test-results
+**/prisma/migrations
+CODE_OF_CONDUCT.md
+docs/project-brief.md
+**/generated/prisma
+apps/web/src/app/_fonts/OFL.txt

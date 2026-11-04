@@ -1,0 +1,15 @@
+packages:
+  - "apps/*"
+  - "packages/*"
+
+# Packages allowed to run install scripts. Prisma needs its engines for migrations.
+onlyBuiltDependencies:
+  - "@prisma/engines"
+  - prisma
+
+# Install scripts we deliberately skip: lefthook hooks come from the root `prepare` script,
+# and the native watchers/compilers have prebuilt fallbacks.
+ignoredBuiltDependencies:
+  - "@parcel/watcher"
+  - "@swc/core"
+  - lefthook

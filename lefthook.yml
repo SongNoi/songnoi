@@ -1,0 +1,12 @@
+# Git hooks, installed by `pnpm install` (see the root `prepare` script).
+pre-commit:
+  jobs:
+    - name: prettier
+      glob: "*.{js,mjs,cjs,ts,tsx,json,md,yml,yaml,css}"
+      run: pnpm exec prettier --write --ignore-unknown {staged_files}
+      stage_fixed: true
+
+commit-msg:
+  jobs:
+    - name: commitlint
+      run: pnpm exec commitlint --edit {1}

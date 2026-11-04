@@ -1,0 +1,31 @@
+{
+  "name": "@songnoi/config",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./tsconfig/base.json": "./tsconfig/base.json",
+    "./tsconfig/library.json": "./tsconfig/library.json",
+    "./tsconfig/nextjs.json": "./tsconfig/nextjs.json",
+    "./eslint/base": "./eslint/base.mjs",
+    "./eslint/react": "./eslint/react.mjs",
+    "./eslint/next": "./eslint/next.mjs",
+    "./prettier": "./prettier.mjs",
+    "./eslint/server-actions": {
+      "types": "./eslint/server-actions.d.mts",
+      "default": "./eslint/server-actions.mjs"
+    }
+  },
+  "dependencies": {
+    "@eslint/js": "10.0.1",
+    "@next/eslint-plugin-next": "16.4.5",
+    "eslint-plugin-react-hooks": "7.1.1",
+    "globals": "17.14.0",
+    "prettier-plugin-tailwindcss": "0.8.1",
+    "typescript-eslint": "8.72.1"
+  },
+  "peerDependencies": {
+    "eslint": "^10.0.0",
+    "prettier": "^3.0.0"
+  }
+}

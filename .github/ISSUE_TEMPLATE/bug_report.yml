@@ -1,0 +1,42 @@
+name: Bug report
+description: Something in SongNoi does not work as expected.
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What did you do, what did you expect, and what happened instead?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Create a form with …
+        2. Publish it and …
+    validations:
+      required: true
+  - type: dropdown
+    id: world
+    attributes:
+      label: Who sees the problem?
+      options: [Admin (form creator), Respondent (person answering), Both, Self-hosting / install]
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: SongNoi version or commit
+  - type: textarea
+    id: env
+    attributes:
+      label: Environment
+      description: OS, browser, how you run SongNoi (docker compose / pnpm dev), language (en/th).
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: Remove secrets, emails and response data before pasting.
+      render: shell

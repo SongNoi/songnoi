@@ -1,0 +1,138 @@
+// SongNoi database schema. Rules: .claude/rules/db.md and brief §6.
+// Form, FormVersion, Response and Answer arrive with their own work items.
+
+generator client {
+  provider     = "prisma-client"
+  output       = "../src/shared/infrastructure/generated/prisma"
+  moduleFormat = "esm"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ── Admin world (form creators) — Better Auth instance `adminAuth` (ADR 0002) ──
+
+model AdminUser {
+  id            String         @id
+  name          String
+  email         String         @unique
+  emailVerified Boolean        @default(false)
+  image         String?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  sessions      AdminSession[]
+  accounts      AdminAccount[]
+
+  @@map("admin_user")
+}
+
+model AdminSession {
+  id        String    @id
+  token     String    @unique
+  expiresAt DateTime
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  userId    String
+  user      AdminUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("admin_session")
+}
+
+model AdminAccount {
+  id                    String    @id
+  accountId             String
+  providerId            String
+  userId                String
+  user                  AdminUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@index([userId])
+  @@map("admin_account")
+}
+
+model AdminVerification {
+  id         String   @id
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([identifier])
+  @@map("admin_verification")
+}
+
+// ── Respondent world (people answering forms) — Better Auth instance `respondentAuth` ──
+
+model RespondentUser {
+  id            String              @id
+  name          String
+  email         String              @unique
+  emailVerified Boolean             @default(false)
+  image         String?
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+  sessions      RespondentSession[]
+  accounts      RespondentAccount[]
+
+  @@map("respondent_user")
+}
+
+model RespondentSession {
+  id        String         @id
+  token     String         @unique
+  expiresAt DateTime
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+  userId    String
+  user      RespondentUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("respondent_session")
+}
+
+model RespondentAccount {
+  id                    String         @id
+  accountId             String
+  providerId            String
+  userId                String
+  user                  RespondentUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime       @default(now())
+  updatedAt             DateTime       @updatedAt
+
+  @@index([userId])
+  @@map("respondent_account")
+}
+
+model RespondentVerification {
+  id         String   @id
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([identifier])
+  @@map("respondent_verification")
+}
