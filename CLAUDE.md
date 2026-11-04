@@ -5,10 +5,15 @@ planning any feature. Never edit it; propose brief changes in your final summary
 
 ## Commands
 
-- `pnpm install` — install workspace deps
+- `pnpm install` — install workspace deps (also git hooks + Prisma client)
+- `pnpm format:check` / `pnpm format` — Prettier
+- `pnpm lint` — ESLint incl. clean-architecture boundaries
 - `pnpm typecheck` — TypeScript across the monorepo
-- `pnpm test` — all tests; one file: `pnpm vitest run <path>`
+- `pnpm test` — unit tests; one file: `pnpm vitest run <path>`
+- `pnpm test:integration` — integration tests against Postgres (`docker compose up -d postgres`)
+- `pnpm --filter @songnoi/web e2e` — Playwright smoke tests (after `pnpm build`)
 - `pnpm build` — production build
+- Standards: `docs/standards.md` · decisions: `docs/adr/`
 
 ## Non-negotiable design rules (brief §2)
 
@@ -49,4 +54,4 @@ Commit a failing test that reproduces the bug first. Then fix it without editing
 - TypeScript `strict`; no `any` without a comment explaining why.
 - Next.js App Router: Server Components by default; `"use client"` only when needed.
 - English for code, comments, docs and commit messages. Conventional Commits.
-- Path-scoped rules live in `.claude/rules/` (schema, db, ui).
+- Path-scoped rules live in `.claude/rules/` (schema, db, ui, architecture).
