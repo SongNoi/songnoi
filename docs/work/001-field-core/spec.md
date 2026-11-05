@@ -8,8 +8,10 @@ Source: [intent.md](./intent.md). Brief references: §2 (design rules), §5 (fie
 The owner decisions recorded in intent.md (interview 2026-11-04) are taken as given and are not
 re-opened here. Where the intent's open questions had a sound recommendation consistent with those
 decisions, it is stated below as a requirement. The two markers of the first draft (R14, R19) and
-two further questions (rating `groupable`, text length counting) were answered by the owner on
-2026-11-05 and are written into the sections below (log: Clarifications).
+six further questions (rating `groupable`, text length counting, the stored-kind error code, rating
+scale changes across versions, how Node/browser parity is proven, and the status of the brief and
+ADR gaps) were answered by the owner on 2026-11-05 in two rounds and are written into the sections
+below (log: Clarifications).
 
 ## How does the form schema change?
 
@@ -68,6 +70,15 @@ Each field entry:
 
 ² Owner decision 2026-11-05; departs from the brief §5 example (Flag 5).
 
+**Answer compatibility across versions (R19).** A definition may declare which config changes make
+answers under the same `fieldId` incomparable. Among the built-ins only `rating` declares one: a
+different `max`, because a 1–5 and a 1–10 scale must never share an average or a split-by (R12); a
+different `icon` is fine. `date` needs no rule, since switching `includeTime` already changes the
+stored kind. The other seven declare none: number bounds and `integer`, text length limits,
+selection limits and file limits change what is accepted, not what a stored value means, and option
+IDs keep option answers comparable when options are added, removed or relabelled, or "Other" is
+switched on or off.
+
 Property names above are the proposed stored names; once released they are as permanent as `type`
 strings.
 
@@ -123,8 +134,10 @@ Answer set (the checkbox answer uses the option-field shape of R14):
   column and a UTC-instant column (brief §6 has one `valueDate DateTime?`; see Flags). Items 003
   and 005 build it.
 - `file` stores one `text` value (the file ID) per file, not `none` (see Flags).
-- A `fieldId` keeps one `type` and one stored kind across all versions (R19), so the merged
-  columns and summaries of 007 and 008 never mix kinds (e.g. calendar dates and instants).
+- A `fieldId` keeps one `type`, one stored kind and, where its definition declares it, comparable
+  config (e.g. one rating scale) across all versions (R19), so the merged columns and summaries of
+  007 and 008 never mix kinds (e.g. calendar dates and instants) or scales (e.g. averages of a 1–5
+  and a 1–10 rating).
 
 ## User stories
 
@@ -134,14 +147,15 @@ Answer set (the checkbox answer uses the option-field shape of R14):
   Admins and respondents are indirect users: what they can configure and answer is what field
   definitions allow.
 - **Want:** to declare a field type once — permanent `type`, config with defaults, answer rules
-  built from the config, cell conversion, stored values and analytics data — with config and
-  answer types inferred from the schemas, and to register it through the same public call the
-  built-ins use.
+  built from the config, cell conversion, stored values, analytics data and which config changes
+  keep answers comparable across versions — with config and answer types inferred from the
+  schemas, and to register it through the same public call the built-ins use.
 - **So that:** built-ins have no privileges (brief §2), and the renderer, server, export and
   analytics all read one typed contract that contains no UI code.
-- **Independent test:** with no built-in loaded, a fixture third-party field with a scoped type
-  is defined and registered through the public calls; type tests show its inferred types;
-  duplicate or malformed types and incompatible analytics data are refused.
+- **Independent test:** with no built-in loaded, a fixture third-party field with a scoped type,
+  including its own answer-compatibility rule, is defined and registered through the public
+  calls; type tests show its inferred types; duplicate or malformed types and incompatible
+  analytics data are refused.
 
 ### US2 — Store a form as a validated Form Schema (P1)
 
@@ -177,7 +191,8 @@ Answer set (the checkbox answer uses the option-field shape of R14):
 - **So that:** admins can ask free-text, numeric and rating questions with the essential limits
   (owner decision 2), validated the same way in the browser and on the server.
 - **Independent test:** per-field tests of config, answers, `toCell`, stored values and analytics
-  through a registry created with the public call.
+  through a registry created with the public call, and of `rating`'s answer-compatibility rule,
+  which refuses a `max` change and accepts an `icon` change.
 
 ### US5 — Built-in choice, dropdown and checkbox fields with "Other" (P2)
 
@@ -204,14 +219,17 @@ Answer set (the checkbox answer uses the option-field shape of R14):
 ### US7 — Keep a question's identity across versions (P3)
 
 - **Who:** the developer of publish (003) and the Builder (004). Admins indirectly: a typo fix
-  after publish does not split their data, while a changed meaning gets a new question.
+  after publish does not split their data, while a changed meaning or scale gets a new question.
 - **Want:** an ID generator for fields and options, and a check that refuses a version in which an
-  existing `fieldId` changes type or stored kind.
-- **So that:** export and analytics can merge versions by `fieldId` (ADR 0009), and every source of
-  schemas (Builder, API, future AI generation) obeys the same rule.
-- **Independent test:** generated IDs are URL-safe, fixed-length and unique over a large sample; a
-  version history with a type change, or with a `date` field's `includeTime` switched under the
-  same `fieldId`, is refused with the conflict listed; label, option and order changes pass.
+  existing `fieldId` changes type, stored kind, or a config setting that its definition declares
+  incompatible (e.g. a rating's `max`).
+- **So that:** export and analytics can merge versions by `fieldId` (ADR 0009) without mixing kinds
+  or scales, and every source of schemas (Builder, API, future AI generation) obeys the same rule.
+- **Independent test:** generated IDs are URL-safe, fixed-length and unique over a large sample, in
+  Node and in Chromium; version histories with a type change, with a `date` field's `includeTime`
+  switched, or with a `rating` field's `max` changed under the same `fieldId` are each refused with
+  their own code and the conflict listed; a fixture field's own compatibility rule is honoured the
+  same way; label, option, order and rating `icon` changes pass.
 
 ## Requirements
 
@@ -219,12 +237,13 @@ Answer set (the checkbox answer uses the option-field shape of R14):
 
 **R1. Public field definition.** One public call defines a field type from: a `type` string; a
 config schema with defaults; an answer schema built from the parsed config; a cell converter
-(`toCell`); how a valid answer becomes stored values; and data-only analytics (`storeAs`,
-`summarize`, `groupable`). Config and answer types are inferred from those schemas, never written
-by hand, and every other part receives the inferred types. A definition holds no UI component.
-`toCell` receives a valid answer, the parsed config and optional export options (in MVP only an
-IANA time zone), returns a string, is pure, and never reads the environment (process time zone,
-locale, variables). — _US1_
+(`toCell`); how a valid answer becomes stored values; data-only analytics (`storeAs`, `summarize`,
+`groupable`); and, optionally, an answer-compatibility rule over an earlier and a new parsed config
+(R19). Config and answer types are inferred from those schemas, never written by hand, and every
+other part receives the inferred types. A definition holds no UI component. `toCell` receives a
+valid answer, the parsed config and optional export options (in MVP only an IANA time zone),
+returns a string, is pure, and never reads the environment (process time zone, locale, variables);
+the compatibility rule is pure as well. — _US1_
 
 **R2. Analytics data and stored values.** `storeAs` is one of `text`, `number`, `date` (calendar
 date), `datetime` (UTC instant) or `none`, and may depend on the parsed config (needed by `date`).
@@ -260,12 +279,14 @@ code-plus-params form. The package itself produces only these codes:
 - answer set: `unknown_field` {fieldId};
 - Form Schema: `unsupported_schema_version` {found}, `unknown_property` {key},
   `unknown_field_type` {type}, `duplicate_field_id` {fieldId}, `duplicate_option_id` {optionId},
-  `reserved_id` {id}, `field_type_changed` {fieldId, previousType, type, previousStoreAs, storeAs,
-  version};
+  `reserved_id` {id};
+- version history (R19): `field_type_changed` {fieldId, previousType, type, version},
+  `field_kind_changed` {fieldId, type, previousStoreAs, storeAs, version},
+  `field_config_incompatible` {fieldId, type, properties, version};
 - definitions, registry and export: `invalid_field_type` {type}, `duplicate_field_type` {type},
   `incompatible_analytics` {storeAs, summarize}, `invalid_time_zone` {timeZone}.
 
-— _US1, US2, US3_
+— _US1, US2, US3, US7_
 
 ### Form Schema
 
@@ -337,7 +358,9 @@ number. Analytics: `number`, `histogram+stats`, not groupable. — _US4_
 (default `star`); the minimum is always 1. Answer: an integer from 1 to `max` (`not_integer`,
 `too_small`, `too_big`). `toCell` writes the integer. Stored value: the number. Analytics:
 `number`, `distribution+avg`, **groupable** (owner decision 2026-11-05, departing from the brief §5
-example; see Flag 5). — _US4_
+example; see Flag 5). Answer compatibility (R19): the definition declares a change of `max`
+incompatible, so a rescaled rating needs a new `fieldId` and averages and split-by never mix scales
+(owner decision 2026-11-05); a change of `icon` is compatible. — _US4_
 
 **R13. `choice`, `dropdown`, `checkbox`: config.** Shared config: `options`, an ordered list of at
 least one `{ id, label }` (`too_few` {min: 1}) with unique IDs (`duplicate_option_id`) and
@@ -412,18 +435,28 @@ cryptographically secure source available in both Node and browsers, URL-safe, o
 with at least 64 bits of randomness, always accepted by R5's ID rules and never a reserved value.
 IDs are generated once when a field or option is created and never derived from labels. — _US7_
 
-**R19. Same question, same type and stored kind.** Given the registry, a form's earlier versions
-in order and a candidate version, one public call refuses the candidate when any `fieldId` in it
-appears in an earlier version with a different `type`, or with the same `type` but a different
-stored kind (the `storeAs` its definition gives for that version's parsed config — e.g. a `date`
-field whose `includeTime` was switched, `date` ↔ `datetime`). Both are refused the same way, with
-`field_type_changed` naming the `fieldId`, the earlier and new type, the earlier and new stored
-kind and the earlier version; the Builder must then issue a new `fieldId`, so no merged column or
-summary mixes kinds. The rule reads `storeAs` from the definitions only, with no special case for
-any built-in. It accepts changes to label, help, required and order, config changes that keep the
-stored kind, removed fields, and a removed field coming back with the same type and stored kind.
-The rule lives in this package, so publish (003), the Builder (004) and any future API or
-AI-generated schema all obey it (ADR 0009). — _US7_
+**R19. Same question, comparable answers.** Given the registry, a form's earlier versions in order
+and a candidate version, one public call refuses the candidate when a `fieldId` in it also appears
+in an earlier version and the answers of the two cannot be merged:
+
+- a different `type` → `field_type_changed`;
+- the same `type` but a different stored kind (the `storeAs` its definition gives for that
+  version's parsed config; e.g. a `date` field whose `includeTime` was switched, `date` ↔
+  `datetime`) → `field_kind_changed`;
+- the same `type` and stored kind, but a config change that the definition's answer-compatibility
+  rule (R1) refuses: the rule receives the earlier and the new parsed config and either accepts the
+  change or names the config properties that make answers incomparable →
+  `field_config_incompatible` with those properties. A definition without a rule accepts every
+  config change that keeps the stored kind.
+
+Each conflicting `fieldId` gives one error: the first failing check in the order above, against the
+most recent earlier version it conflicts with. The Builder must then issue a new `fieldId`, so no
+merged column or summary mixes kinds or scales. The call reads `type`, `storeAs` and the rules from
+the registry's definitions only, with no special case for any built-in; among the built-ins only
+`rating` declares a rule (R12). It accepts changes to label, help, required and order, compatible
+config changes, removed fields, and a removed field coming back with the same type and stored kind
+and a compatible config. The check lives in this package, so publish (003), the Builder (004) and
+any future API or AI-generated schema all obey it (ADR 0009). — _US7_
 
 ### Platform
 
@@ -458,18 +491,30 @@ without a comment. — _US1–US7_
   fields are never dropped silently.
 - A plugin whose config schema becomes stricter can make older stored versions fail. Type strings
   are permanent (ADR 0007), so plugin authors must keep config backward compatible; built-in
-  config changes go through `schemaVersion` migration (R7).
+  config changes go through `schemaVersion` migration (R7). Likewise, a plugin release that
+  changes the `storeAs` it gives for a config, or tightens its answer-compatibility rule, can make
+  an existing version history conflict, so the next publish of such a form is refused (R19);
+  plugin authors must keep both stable.
 - Repeated `fieldId` in one schema → `duplicate_field_id`; the same option ID twice in one field →
   `duplicate_option_id`; the same option ID in two different fields is allowed (IDs are scoped per
   field). Duplicate option **labels** are allowed (IDs identify options); CSV cells then cannot
   tell them apart, so 004 may warn.
-- Same `fieldId` with a different `type` across versions → `field_type_changed` (R19).
-- Same `fieldId` and `type` but a different stored kind across versions → refused the same way.
+- Same `fieldId` with a different `type` across versions → `field_type_changed` (R19), and only
+  that, even when the stored kind changes too (e.g. `text` → `number`).
+- Same `fieldId` and `type` but a different stored kind across versions → `field_kind_changed`.
   Example: a `date` field published with `includeTime` false, then switched to true under the same
-  `fieldId` (`date` → `datetime`), gives `field_type_changed` {previousStoreAs: `date`, storeAs:
-  `datetime`}; the switch back is refused too. The Builder (004) must give the switched question a
-  new `fieldId`. Config changes that keep the stored kind (an option added or relabelled, a text
-  length limit changed) pass.
+  `fieldId` (`date` → `datetime`), gives `field_kind_changed` {type: `date`, previousStoreAs:
+  `date`, storeAs: `datetime`}; the switch back is refused too. The Builder (004) must give the
+  switched question a new `fieldId`.
+- Same `fieldId`, `type` and stored kind, but a config change that the definition declares
+  incompatible → `field_config_incompatible`. Example: a `rating` published with `max` 5, then set
+  to 10 under the same `fieldId`, gives `field_config_incompatible` {type: `rating`, properties:
+  [`max`]}; 10 → 5 is refused too, and so is a field removed in one version that comes back later
+  with a different `max`. The Builder (004) must give the rescaled question a new `fieldId`. A form
+  that was never published has no earlier version, so its draft rating may change `max` freely.
+- Config changes that keep the stored kind and that no rule declares incompatible pass: an option
+  added, removed or relabelled, "Other" switched on or off, a text length limit or number bound
+  changed, `integer` switched, rating `icon` changed, `maxFiles` raised.
 - Unknown answer keys → `unknown_field`; all other fields are still checked and reported.
 - An answer set that is an array, string, number or `null` → `invalid` for the whole set, never a
   thrown exception.
@@ -511,8 +556,8 @@ without a comment. — _US1–US7_
   `สวัสดี` (6 code points) counts 4; a vowel written beside the consonant is a character of its
   own, so `กา` counts 2; `👍🏽` (thumbs up + skin-tone modifier) counts 1; the family
   emoji `👨‍👩‍👧‍👦` (four people joined by three ZWJ, 7 code points) counts 1; the flag `🇹🇭` counts 1.
-  Node and modern browsers must give the same count, and the renderer's character counter (002)
-  must use the same rule so client and server agree.
+  Node and modern browsers must give the same count (proven in Node and in Chromium, AC15), and
+  the renderer's character counter (002) must use the same rule so client and server agree.
 - `meta.language` accepts any well-formed BCP 47 tag (`th`, `en`, `ja`, `th-TH`). The respondent UI
   locale is derived from it in 005 through `resolveRespondentLocale` (000 R26): a tag with a
   region such as `th-TH` should resolve to `th`; unsupported languages fall back to `en`.
@@ -565,8 +610,8 @@ without a comment. — _US1–US7_
       library in dependencies, peer or optional dependencies; Zod is its only runtime dependency;
       the build output imports no Node built-in module. (R20)
 - [ ] **AC3** Type tests: the inferred config and answer types of `rating` and of the fixture field
-      equal the expected types; a `toCell` or stored-values rule written for the wrong answer type
-      fails to compile. (R1)
+      equal the expected types; a `toCell` or stored-values rule written for the wrong answer type,
+      or an answer-compatibility rule written for the wrong config type, fails to compile. (R1)
 - [ ] **AC4** Unit: a registry created without built-ins refuses a form using `text` with
       `unknown_field_type`; a registry may hold a third-party definition with type `text` instead
       of the built-in; the package exports no pre-filled registry. (R3)
@@ -582,9 +627,9 @@ without a comment. — _US1–US7_
       `["Qm2xT8aLp0vW", "other"]`, without the text; `choice` with "Other" chosen → `["other"]`;
       file with two IDs → two `text` values; date-time → one `datetime`); a `storeAs: none`
       fixture gives an empty list. (R2, R14, R17)
-- [ ] **AC8** Unit: every error produced by the failure cases of AC4–AC27 (definitions, registry,
-      schema, answers, cells) has a code, params and a location and no message text, and every
-      code produced by the package is in R4's list. (R4)
+- [ ] **AC8** Unit: every error produced by the failure cases of AC4–AC27 and AC29 (definitions,
+      registry, schema, answers, cells, version history) has a code, params and a location and no
+      message text, and every code produced by the package is in R4's list. (R4)
 - [ ] **AC9** Unit: a valid schema parses with defaults written in (`required` false, rating `max` 5
       and `icon` `star`, number `integer` false, `allowOther` false, `includeTime` false,
       `maxFiles` 1); parsing the result again gives an equal value; `meta.language` `TH` comes back
@@ -609,9 +654,10 @@ without a comment. — _US1–US7_
       trimming: with `maxLength: 1`, `ที่`, `"  ที่  "`, `👍🏽` and `👨‍👩‍👧‍👦` are each accepted,
       and with `minLength: 2` each fails with `too_short` {min: 2}; `สวัสดี` passes
       `maxLength: 4` and fails `maxLength: 3` with `too_long` {max: 3}; `textarea` counts `a\r\nb`
-      as 3. These counts are identical in Node and in a real browser engine (a DOM emulation
-      running in Node does not count, as it shares Node's Unicode data). `text` with a line break
-      is `invalid` while `textarea` keeps it; `toCell` returns the trimmed text. (R10, R20)
+      as 3. These cases give identical results when run in Node and in Chromium, a real browser
+      engine; a simulated browser environment inside Node does not satisfy this, as it uses Node's
+      own engine and Unicode data. `text` with a line break is `invalid` while `textarea` keeps
+      it; `toCell` returns the trimmed text. (R10, R20)
 - [ ] **AC16** Unit: `number` accepts `2.5` by default and gives `not_integer` with `integer`;
       bounds are inclusive; `"5"` is `invalid`; `toCell(1234.5)` is `"1234.5"` and
       `toCell(-0.25)` is `"-0.25"`. (R11)
@@ -649,60 +695,90 @@ without a comment. — _US1–US7_
       MIME entry; answers with too many IDs, a repeated ID or an empty ID fail with `too_many`,
       `duplicate`, `invalid`; `toCell` joins IDs with `; `. (R17)
 - [ ] **AC25** Unit: 100,000 generated IDs all pass R5's ID rules, have the same length (at least 11
-      URL-safe characters), contain no duplicate, and the same test passes in a browser-like
-      environment. (R18, R20)
+      URL-safe characters), contain no duplicate, and the same test passes when run in Chromium, a
+      real browser engine (a simulated browser environment inside Node does not satisfy this).
+      (R18, R20)
 - [ ] **AC26** Unit: a version history where one `fieldId` is `text` in v1 and `number` in v2 is
-      refused with `field_type_changed` naming the field, both types, both stored kinds and v1;
-      label, help, required and order changes, config changes that keep the stored kind, a removed
-      field, and a removed field re-added with the same type are accepted. (R19)
+      refused with `field_type_changed` {fieldId, previousType: `text`, type: `number`, version:
+      v1} and no `field_kind_changed`, although the stored kind changes too; label, help, required
+      and order changes, config changes that keep the stored kind and are not declared
+      incompatible, a removed field, and a removed field re-added with the same type, stored kind
+      and a compatible config are accepted. (R19)
 - [ ] **AC27** Unit: a `date` field with `includeTime` false in v1 and true in v2 under the same
-      `fieldId` is refused with `field_type_changed` {previousType: `date`, type: `date`,
-      previousStoreAs: `date`, storeAs: `datetime`, version: v1}; true → false is refused too; the
-      same field with only its label changed passes. A fixture field whose `storeAs` depends on its
-      config is refused the same way when that config flips its kind. (R2, R19)
-- [ ] **AC28** Check: the package's unit tests pass in Node and in a browser-like environment with
-      the same results, and `pnpm lint` and `pnpm typecheck` pass with the strict settings. (R20)
+      `fieldId` is refused with `field_kind_changed` {fieldId, type: `date`, previousStoreAs:
+      `date`, storeAs: `datetime`, version: v1}; true → false is refused too; the same field with
+      only its label changed passes. A fixture field whose `storeAs` depends on its config is
+      refused with `field_kind_changed` too when that config flips its kind. (R2, R19)
+- [ ] **AC28** Check: the package's unit tests pass both in Node and in Chromium, a real browser
+      engine, with the same results (a simulated browser environment inside Node does not satisfy
+      this); `pnpm lint` and `pnpm typecheck` pass with the strict settings. (R8, R20)
+- [ ] **AC29** Unit: a `rating` field with `max` 5 in v1 and 10 in v2 under the same `fieldId` is
+      refused with `field_config_incompatible` {fieldId, type: `rating`, properties: [`max`],
+      version: v1}; 10 → 5 is refused too, and so is v1 `max` 5, v2 without the field, candidate
+      `max` 10 (against v1). A change of only `icon` passes, and so do these changes to other
+      built-ins: `number` `integer` switched; a `choice`, `dropdown` and `checkbox` option removed
+      and "Other" switched on; `text` and `textarea` `maxLength` changed; `file` `maxFiles`
+      raised. A fixture third-party field declares its own compatibility rule through the same
+      public definition call, and a history that breaks it is refused with
+      `field_config_incompatible` naming the properties its rule returns; a third-party definition
+      registered as `rating` without a rule accepts the same `max` change, showing that the check
+      has no built-in special case. (R1, R12, R19)
 
 ## Flags
 
+Flags 1–7 are **accepted known gaps** (owner decision 2026-11-05): the ADRs they name (0003, 0007,
+0009, 0011) are amended during `/impl-plan`, the owner updates the brief (§5, §6, §10) later, and
+none of them blocks `/impl-plan`. Each flag keeps its remaining action.
+
 1. **Brief §5 lists 8 built-in fields; this spec has 9.** `file` is the owner's decision (ADR 0011,
    intent decision 6), but ADR 0011 is still _Proposed_ until the owner amends brief §5 and §10
-   MVP item 1. This item builds on that Proposed ADR. Owner action: amend the brief (or confirm
-   that `/impl-plan` may proceed before the amendment).
+   MVP item 1. This item builds on that Proposed ADR. **Status: accepted known gap** (owner,
+   2026-11-05): `/impl-plan` proceeds before the amendment. Remaining: the owner amends brief §5
+   and §10 MVP item 1; ADR 0011 is updated in `/impl-plan` (Flag 4) and accepted after the brief
+   amendment.
 2. **Brief §5 puts React components inside `defineField`.** This spec follows ADR 0007 (headless
    core; `Render`, `Settings`, `Chart` live in the renderer's UI binding, item 002). The §5 example
    also shows `toCell: (v) => …`; here `toCell` also receives the parsed config (needed for option
    labels) and optional export options (time zone). Brief gap 2 in ADR 0006 already lists the
-   example update.
+   example update. **Status: accepted known gap** (owner, 2026-11-05). Remaining: the owner
+   updates the brief §5 example later.
 3. **Brief §6 `Answer.valueDate DateTime?` is one column; this spec needs two kinds.** `storeAs`
    gains `datetime` (owner decision 5), extending ADR 0007's `"text" | "number" | "date" | "none"`.
    Proposed brief §6 change (owner to make): `valueDate` as a Postgres `date` plus a new
-   `valueDateTime` as `timestamptz`; items 003/005 build them. ADR 0007 needs a matching amendment.
+   `valueDateTime` as `timestamptz`; items 003/005 build them. **Status: accepted known gap**
+   (owner, 2026-11-05). Remaining: ADR 0007 amended in `/impl-plan`; the owner updates brief §6
+   later.
 4. **ADR 0011 no longer matches the `file` field.** ADR 0011 says the answer holds storage key,
    name, size and type, `storeAs: "none"`, and `toCell` writes names plus a download path. Per
    owner decision 6 the answer is a list of file IDs, stored as one `text` value per file (so
    `storeAs: "text"`, not `"none"`), and `toCell` writes IDs that item 007 resolves to names and
-   paths. File metadata lives with the upload record (006). ADR 0011 needs an update before it is
-   accepted.
-5. **`rating` groupable: owner decision 2026-11-05 departs from brief §5 example; brief amendment
-   needed.** Brief §5's `ratingField` example (and intent open question 5) has `groupable: false`.
-   The owner chose `groupable: true` (as intent open question 6 proposed), so a rating can be the
-   "split by" dimension of a cross-tab (brief §9 layer 2, Phase 2). R12, the schema table and AC6
-   follow the owner. Owner action: amend the brief §5 example. `groupable` is data only: no
-   cross-tab is built in this item, and stored data is unaffected.
+   paths. File metadata lives with the upload record (006). **Status: accepted known gap** (owner,
+   2026-11-05). Remaining: ADR 0011 updated in `/impl-plan`; it stays Proposed until the brief
+   amendment of Flag 1.
+5. **`rating` groupable: owner decision 2026-11-05 departs from brief §5 example.** Brief §5's
+   `ratingField` example (and intent open question 5) has `groupable: false`. The owner chose
+   `groupable: true` (as intent open question 6 proposed), so a rating can be the "split by"
+   dimension of a cross-tab (brief §9 layer 2, Phase 2). R12, the schema table and AC6 follow the
+   owner. `groupable` is data only: no cross-tab is built in this item, and stored data is
+   unaffected. **Status: accepted known gap** (owner, 2026-11-05). Remaining: the owner amends the
+   brief §5 example later (together with Flag 2).
 6. **ADR 0003 and `000-foundation` require `LocalizedText`.** ADR 0003 Consequences and the 000
    spec (Flag 1) say `001` must model schema text as `LocalizedText`. Owner decision 1 replaced
-   that with one plain-text language per form. ADR 0003 needs an amendment, and multi-language form
-   content (proposed in 000 for Phase 2) now means a `schemaVersion` migration.
-7. **New parts of the public field API beyond ADR 0007's member list.** To let item 005 write
-   `Answer` rows for any field (including plugins and "Other"), each definition must state how an
-   answer becomes stored values (R2) and what counts as unanswered (R9); `storeAs` may depend on
-   config (R2); `summarize` is a closed set that adds `none` (not in intent open question 6) so a
-   `storeAs: "none"` plugin has a valid pairing. R19 also extends ADR 0009: a change of stored
-   kind under the same `fieldId` is refused like a type change (owner, 2026-11-05), so ADR 0009's
-   "changing a field's `type` creates a new `fieldId`" must also cover `storeAs`. `/impl-plan`
-   should record these, together with single-language text and `schemaVersion`, in one ADR or an
-   amendment to ADR 0007/0009 (as the intent asks).
+   that with one plain-text language per form; multi-language form content (proposed in 000 for
+   Phase 2) now means a `schemaVersion` migration. **Status: accepted known gap** (owner,
+   2026-11-05). Remaining: ADR 0003 amended in `/impl-plan`.
+7. **New parts of the public field API beyond ADR 0007's member list, and a wider ADR 0009
+   rule.** To let item 005 write `Answer` rows for any field (including plugins and "Other"), each
+   definition must state how an answer becomes stored values (R2) and what counts as unanswered
+   (R9); `storeAs` may depend on config (R2); `summarize` is a closed set that adds `none` (not in
+   intent open question 6) so a `storeAs: "none"` plugin has a valid pairing; and a definition may
+   declare an answer-compatibility rule (R1, R19). ADR 0009's "changing a field's `type` creates a
+   new `fieldId`" now also covers a change of stored kind and a config change that the definition
+   declares incompatible (owner, 2026-11-05), each with its own code: `field_type_changed`,
+   `field_kind_changed`, `field_config_incompatible` (R4). **Status: accepted known gap** (owner,
+   2026-11-05). Remaining: `/impl-plan` records these, together with single-language text and
+   `schemaVersion`, in one ADR or an amendment to ADR 0007/0009 (as the intent asks); the owner's
+   later brief §5 update should show them.
 8. **Downstream risks, not conflicts:**
    - Brief §6 indexes `Answer(fieldId, valueText)`. Long `textarea` answers can exceed Postgres's
      B-tree index row size; item 003 must decide (e.g. no index on long text, or a prefix/hash).
@@ -711,13 +787,20 @@ without a comment. — _US1–US7_
    - 005 must map a region-tagged `meta.language` (e.g. `th-TH`) to the UI locale `th`.
    - Grapheme rules change between Unicode versions (e.g. Unicode 15.1 changed some Indic
      conjuncts), and Node and browsers can ship different Unicode data. The Thai and emoji cases
-     in AC15 are stable, but `/impl-plan` must show how R10's Node/browser parity holds while Zod
-     stays the only runtime dependency (R20), or bring the trade-off back to the owner.
-9. **Size is at the ADR 0006 limit: 20 of 20 requirements**, with R4, R14 and R19 dense (the
-   2026-11-05 answers were written into existing requirements; none was added). Nothing was
-   trimmed. If `/tasks` goes over 40 tasks, apply the intent's fallback split (open question 7)
-   along story lines: US1–US4 and US7 stay in `001-field-core`; US5 (option fields with "Other")
-   and US6 (date, file) move to `001b`.
+     in AC15 are stable. Node/browser parity (R8, R10, R18, R20) must be proven in a real browser
+     engine, Chromium, not only in a simulated browser environment inside Node, which shares
+     Node's engine and Unicode data (owner, 2026-11-05; AC15, AC25, AC28). `/impl-plan` must name
+     the tooling that runs the package's tests in Chromium and show how R10's parity holds while
+     Zod stays the only runtime dependency (R20), or bring the trade-off back to the owner.
+   - R10 and R20 say "modern" / "current" browsers, but only Chromium is tested. Firefox and
+     Safari use other engines and their own Unicode data, so parity there is not proven by this
+     item — a residual risk unless the owner adds those engines later.
+9. **Size is at the ADR 0006 limit: 20 of 20 requirements**, with R4, R14 and R19 dense. Both
+   rounds of 2026-11-05 answers were written into existing requirements (the second round extended
+   R1, R4, R12 and R19 and added AC29); no requirement was added and nothing was trimmed. If
+   `/tasks` goes over 40 tasks, apply the intent's fallback split (open question 7) along story
+   lines: US1–US4 and US7 stay in `001-field-core`; US5 (option fields with "Other") and US6
+   (date, file) move to `001b`, taking AC27's `date` case with them (AC27's fixture case stays).
 10. **No BI creep.** `summarize` and `groupable` are data only; no charts, pivot tables, formulas or
     dashboards. No custom condition language. Intent open question 1 (CSV time zone) stays with
     item 007; this item only accepts an optional time zone in `toCell` (R16).
@@ -742,3 +825,24 @@ without a comment. — _US1–US7_
   characters (extended grapheme clusters, Unicode UAX #29) after trimming: `ที่`, `👍🏽` and a
   family emoji ZWJ sequence each count 1. Node and modern browsers must give the same count; how
   is left to `plan.md`. (R10, Edge cases, AC15, Flag 8)
+- Q: Which error code does a stored-kind change under the same `fieldId` give? → A: A new code,
+  `field_kind_changed` {fieldId, type, previousStoreAs, storeAs, version}, distinct from
+  `field_type_changed` {fieldId, previousType, type, version}, which is now only for a different
+  `type`. (R4, R19, Edge cases, AC26, AC27, Flag 7)
+- Q: May a `rating` field's `max` change across versions under the same `fieldId`? → A: No; a
+  scale change is a new question, so averages and split-by never mix scales. Not a rating special
+  case (constitution 2): any field definition may declare, through the public definition call, an
+  answer-compatibility rule over the earlier and the new config, and the version check consults it.
+  Built-ins: only `rating` declares one (`max`); `date`'s `includeTime` is already a stored-kind
+  change; no other built-in needs one. A fixture third-party field proves the same call. Code
+  (analyst's choice): a dedicated `field_config_incompatible` {fieldId, type, properties, version}
+  rather than `field_kind_changed` with a reason param, so every code keeps one fixed param set and
+  maps to one message. (Schema section, Impact on later items, US1, US4, US7, R1, R4, R12, R19,
+  Edge cases, AC3, AC8, AC29, Flags 7, 9)
+- Q: Where must Node/browser parity (grapheme counting, ID generation, the package working in a
+  browser) be proven? → A: In a real browser engine, Chromium, not only in a simulated browser
+  environment inside Node; the tooling belongs to `plan.md`. (US7, Edge cases, AC15, AC25, AC28,
+  Flag 8)
+- Q: Must the disagreements with brief §5/§6 and ADRs 0003/0007/0009/0011 be settled before
+  `/impl-plan`? → A: No; they are accepted as known gaps. The ADRs are amended during
+  `/impl-plan`; the owner updates the brief later. (Flags 1–7)
