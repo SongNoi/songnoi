@@ -9,8 +9,11 @@ back four owner answers; again on 2026-11-05 after a second `/clarify` round wro
 and again on 2026-11-05 after a third `/clarify` round resolved the `/analyze` findings — four
 owner decisions (F04, F06, F08, F27) and fourteen syncs with the approved plan.md and ADR 0012
 (Clarifications, Session 2026-11-05: 12 Q/A entries plus one sync entry); and again on 2026-11-05
-after the second `/analyze` pass — a sync with the revised plan.md (N05, N07, N08, N14; F29
-accepted as-is), no owner decision (one further sync entry).
+after the second `/analyze` pass — a sync with the revised plan.md (N05, N07, N08, N14, with N07
+= rating config codes named in Limits; F29 accepted as-is), no owner decision (one further sync
+entry); and again on 2026-11-05 after the third `/analyze` pass — P06 (AC24 `file` config
+codes), P07 (this list and the spec log now match), P08 (`idSchema` added to Terms), no owner
+decision (one further sync entry).
 
 ## Content quality
 
@@ -23,8 +26,9 @@ accepted as-is), no owner decision (one further sync entry).
       BCP 47 locale identifiers, UTS #35) and the line-break rule (ECMAScript line terminators,
       listed as characters). Chromium is named because the owner set it as the engine that proves
       Node/browser parity; the tooling that runs tests in it is left to `plan.md` (Flag 8). The
-      "Terms" line maps spec terms to plan.md's API names for tracing only; no requirement depends
-      on those names.
+      "Terms" line maps spec terms to plan.md's API names for tracing only (same set as plan.md's
+      glossary, incl. `idSchema`, `validateResponse`, `checkVersionHistory`); no requirement
+      depends on those names.
 - [x] Each part says what and why; "how" is deferred to `/impl-plan`.
 - [x] Sections are in the required order, with schema impact first; `## Clarifications` follows
       `## Flags`.
@@ -46,8 +50,9 @@ accepted as-is), no owner decision (one further sync entry).
       (Terms), schema section, R1, R4–R8, R10, R11, R13–R17, Edge cases (Failure, Permission,
       i18n, Limits), AC8–AC12, AC15, AC16, AC18–AC20, AC22–AC24, AC28, Flags 8–10; second
       `/analyze` sync: intro, R4, R8, R19, R20, Edge cases (Failure, Limits), AC10, AC12, AC26,
-      Flag 9 — and logged under `## Clarifications` → `### Session 2026-11-05` (12 Q/A entries
-      plus two entries listing the plan syncs).
+      Flag 9; third `/analyze` sync: intro (Terms), AC24 — and logged under
+      `## Clarifications` → `### Session 2026-11-05` (12 Q/A entries plus three entries listing
+      the syncs).
 - [x] Requirements are numbered, testable, and each is tagged with at least one user story.
 - [x] Requirement count within the ADR 0006 limit: **20 / 20**; acceptance criteria **29**. No
       round added a requirement (the second extended R1, R4, R12 and R19; the third extended R1,
@@ -116,7 +121,9 @@ accepted as-is), no owner decision (one further sync entry).
       registry miss → `unknown_field_type` at the candidate's `["fields", i, "type"]`); AC12
       states the registry-miss row and the per-family hostile-JSON rows; AC10 and the Limits
       give rating config codes with params (`too_small` {min: 2}, `too_big` {max: 10},
-      `not_integer`), matching plan.md's Zod mapping table.
+      `not_integer`), matching plan.md's Zod mapping table. Third `/analyze` sync: AC24 names
+      `too_small` {min: 1} for `maxFiles: 0` and `maxSize: 0`, consistent with R17's "integer ≥ 1"
+      bounds and the code `maxSelections: 0` gives.
 - [x] Flags list every conflict found with the brief, the constitution and ADRs 0003, 0007, 0009,
       0011 (incl. the brief §5 rating example, Flag 5, and the ADR 0007/0009 extensions — stored
       kind, answer-compatibility rule, three version codes — Flag 7); Flag 8 also records the

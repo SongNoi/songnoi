@@ -19,7 +19,8 @@ decision. All answers are written into the sections below (log: Clarifications).
 **Terms** (spec term = API name in plan.md, for tracing only): "export options" = `CellOptions`,
 validated by `parseCellOptions`; "answer-compatibility rule" = `incompatibleChanges`; "unanswered"
 rule = `isUnanswered`; "stored values" = `storedValues`; read entry point = `parseFormSchema`;
-whole-response validation = `validateResponse`; version check = `checkVersionHistory`.
+whole-response validation = `validateResponse`; version check = `checkVersionHistory`; "ID rules"
+(R5) = `idSchema`, the public ID schema for `fieldId` and option IDs.
 
 ## How does the form schema change?
 
@@ -826,7 +827,8 @@ limit — throws. This is the one stated exception to "the package and the built
       `Mars/Base` or `+07:00` gives `invalid_time_zone`; results are identical with the test
       process time zone set to two different zones. (R1, R16)
 - [ ] **AC24** Unit: `file` config defaults to `maxFiles` 1, accepts `image/*` and refuses
-      `maxFiles` 0, `allowedTypes: []` (`too_few` {min: 1}), a malformed MIME entry and `*/*`
+      `maxFiles: 0` (`too_small` {min: 1}), `maxSize: 0` (`too_small` {min: 1}),
+      `allowedTypes: []` (`too_few` {min: 1}), a malformed MIME entry and `*/*`
       (`invalid`); answers with too many IDs, a repeated ID or an empty ID fail with `too_many`,
       `duplicate`, `invalid`; `toCell` joins IDs with `; `. (R17)
 - [ ] **AC25** Unit: 100,000 generated IDs all pass R5's ID rules, have the same length (at least 11
@@ -1024,6 +1026,7 @@ none of them blocks `/impl-plan`. Each flag keeps its remaining action.
 - Spec synced with the approved plan.md and ADR 0012 after `/analyze` (no owner decision): F03,
   F05, F07, F11, F12, F13, F14, F15, F17, F18, F19, F20, F25, F26. (Terms, R1, R4, R5, R7, R10,
   R13–R17, Edge cases, AC8–AC11, AC15, AC18–AC20, AC22–AC24, AC28, Flags 8, 9)
-- Spec synced after second /analyze: N05, N08, N14; F29 accepted as-is (Flag 8 already records
-  Chromium-only proof). (Intro, R4, R8, R19, R20, Edge cases (Failure, Limits incl. N07's rating
-  config codes), AC10, AC12, AC26, Flag 9)
+- Spec synced after second /analyze: N05, N07, N08, N14 (N07 = rating config codes named in
+  Limits); F29 accepted as-is (Flag 8 already records Chromium-only proof). (Intro, R4, R8, R19,
+  R20, Edge cases (Failure, Limits), AC10, AC12, AC26, Flag 9)
+- Spec synced after third /analyze: P06, P07, P08.
