@@ -7,13 +7,17 @@ import * as api from "../src/index"
 // not runtime exports; `test/types/define-field.test-d.ts` checks the public type names.
 // Shared test: runs in Node and in Chromium.
 
-// Export name -> `typeof` of its value. Phase 3 (US1): the field API without built-ins.
+// Export name -> `typeof` of its value. Phase 3 (US1): the field API without built-ins. Phase 4
+// (US2, T013): `CURRENT_SCHEMA_VERSION`, `parseFormSchema`, `idSchema`.
 const PINNED_EXPORTS: Readonly<Record<string, string>> = {
+  CURRENT_SCHEMA_VERSION: "number",
   FieldDefinitionError: "function",
   createFieldRegistry: "function",
   customIssue: "function",
   defineField: "function",
+  idSchema: "object",
   issueSchema: "object",
+  parseFormSchema: "function",
   storeAsOf: "function",
 }
 
