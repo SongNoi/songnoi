@@ -10,8 +10,15 @@ re-opened here. Where the intent's open questions had a sound recommendation con
 decisions, it is stated below as a requirement. The two markers of the first draft (R14, R19) and
 six further questions (rating `groupable`, text length counting, the stored-kind error code, rating
 scale changes across versions, how Node/browser parity is proven, and the status of the brief and
-ADR gaps) were answered by the owner on 2026-11-05 in two rounds and are written into the sections
-below (log: Clarifications).
+ADR gaps) were answered by the owner on 2026-11-05 in two rounds. A third round on 2026-11-05,
+after `/analyze`, settled four more points (number cells, strict configs, plugin exceptions,
+checkbox `maxSelections`) and aligned the spec with the approved `plan.md` and ADR 0012. All
+answers are written into the sections below (log: Clarifications).
+
+**Terms** (spec term = API name in plan.md, for tracing only): "export options" = `CellOptions`,
+validated by `parseCellOptions`; "answer-compatibility rule" = `incompatibleChanges`; "unanswered"
+rule = `isUnanswered`; "stored values" = `storedValues`; read entry point = `parseFormSchema`;
+whole-response validation = `validateResponse`; version check = `checkVersionHistory`.
 
 ## How does the form schema change?
 
@@ -22,13 +29,13 @@ to the stored format needs a new `schemaVersion` and a migration step (R7), and 
 
 ### Form Schema (stored as `Form.draftSchema` and `FormVersion.schema`, brief §6)
 
-| Part               | Contents                             | Rules                                                                          |
-| ------------------ | ------------------------------------ | ------------------------------------------------------------------------------ |
-| `schemaVersion`    | the literal `1`                      | required; anything else is refused (R7)                                        |
-| `meta.title`       | plain string                         | required, not blank                                                            |
-| `meta.description` | plain string                         | optional                                                                       |
-| `meta.language`    | BCP 47 language tag, e.g. `th`, `en` | required; **one language per form** (owner decision 1); all form text is in it |
-| `fields`           | ordered list of field entries        | list order is display order; may be empty                                      |
+| Part               | Contents                                    | Rules                                                                      |
+| ------------------ | ------------------------------------------- | -------------------------------------------------------------------------- |
+| `schemaVersion`    | the literal `1`                             | required; anything else is refused (R7)                                    |
+| `meta.title`       | plain string                                | required, not blank                                                        |
+| `meta.description` | plain string                                | optional                                                                   |
+| `meta.language`    | Unicode BCP 47 locale identifier, e.g. `th` | required; canonicalised (R5); **one language per form** (owner decision 1) |
+| `fields`           | ordered list of field entries               | list order is display order; may be empty                                  |
 
 Each field entry:
 
@@ -46,8 +53,9 @@ Each field entry:
   forms would be a later schema migration (owner decision 1).
 - The Form Schema is **public**: the renderer sends it to respondents' browsers. It holds only
   what a respondent may see — never access settings, passwords, webhook targets or response data
-  (those belong on the `Form` record in items 003, 005, 007). Unknown properties are refused (R6),
-  so nothing else can be stored in it.
+  (those belong on the `Form` record in items 003, 005, 007). Unknown properties are refused at
+  form, meta and field-entry level and inside built-in configs, option entries included (R6), so
+  nothing else can be stored there; third-party configs are recommended to be just as strict.
 - Choice options carry stable IDs with the same format and generator as `fieldId`s, unique within
   their field. The option ID `other` is reserved for the "Other" selection.
 
@@ -241,9 +249,10 @@ config schema with defaults; an answer schema built from the parsed config; a ce
 `groupable`); and, optionally, an answer-compatibility rule over an earlier and a new parsed config
 (R19). Config and answer types are inferred from those schemas, never written by hand, and every
 other part receives the inferred types. A definition holds no UI component. `toCell` receives a
-valid answer, the parsed config and optional export options (in MVP only an IANA time zone),
-returns a string, is pure, and never reads the environment (process time zone, locale, variables);
-the compatibility rule is pure as well. — _US1_
+valid answer, the parsed config and optional export options that the package has already
+validated (in MVP only an IANA time zone, R16), returns a string, is pure, and never reads the
+environment (process time zone, locale, variables); the compatibility rule is pure as well.
+— _US1_
 
 **R2. Analytics data and stored values.** `storeAs` is one of `text`, `number`, `date` (calendar
 date), `datetime` (UTC instant) or `none`, and may depend on the parsed config (needed by `date`).
@@ -270,7 +279,9 @@ answers, export options — is reported as a code, named params and a location (
 schema; a `fieldId` plus optional path inside the answer; or the answer set as a whole), never as
 display text. The package contains no user-facing strings (constitution 13); item 002 maps codes
 to `messages/{en,th}.json`. Errors from a third-party field's own rules come out in the same
-code-plus-params form. The package itself produces only these codes:
+code-plus-params form. The list is **closed in MVP**: a third-party field's rules can raise only
+these codes, and any other code, or a rule failure with no matching code, comes out as `invalid`
+(adding a code changes the package and both message files). The package produces only these codes:
 
 - values and config: `required`, `invalid`, `too_short` {min}, `too_long` {max}, `too_small`
   {min}, `too_big` {max}, `not_integer`, `too_few` {min}, `too_many` {max}, `invalid_range` {min,
@@ -292,27 +303,42 @@ code-plus-params form. The package itself produces only these codes:
 
 **R5. Form Schema structure.** A Form Schema has exactly `schemaVersion`, `meta` and `fields` as
 described in "How does the form schema change?". `meta` holds a non-blank `title`, an optional
-`description` and a required `language` (a well-formed BCP 47 tag, returned in canonical case,
-e.g. `TH` → `th`). Each field entry holds `fieldId`, `type`, a non-blank `label`, optional `help`,
-`required` (default `false`) and `config`. All text is plain strings in the form's one language.
-`fieldId`s and option IDs are 1–64 URL-safe characters (`A–Z a–z 0–9 _ -`); `__proto__`,
-`constructor` and `prototype` are refused as `fieldId`s and `other` as an option ID
-(`reserved_id`). — _US2_
+`description` and a required `language`. Each field entry holds `fieldId`, `type`, a non-blank
+`label`, optional `help`, `required` (default `false`) and `config`. A missing, empty or
+whitespace-only `title` or `label` fails with `required`. All text is plain strings in the form's
+one language.
+
+- `language` is a Unicode BCP 47 locale identifier (Unicode UTS #35), returned canonicalised: case
+  is normalised and deprecated aliases are replaced (`TH` → `th`, `th-th` → `th-TH`, `iw` → `he`).
+  A malformed tag (`en_US`, empty) is `invalid`, and so are a few rare forms that BCP 47 allows but
+  Unicode locale identifiers do not: extended language subtags, private-use-only tags (e.g.
+  `x-private`) and grandfathered tags.
+- `fieldId`s and option IDs are 1–64 URL-safe characters (`A–Z a–z 0–9 _ -`); `__proto__`,
+  `constructor` and `prototype` are refused as `fieldId`s and `other` as an option ID
+  (`reserved_id`).
+
+— _US2_
 
 **R6. Form Schema validation.** Validating a candidate against a registry returns either the
-parsed schema or every error with its path. It refuses unknown properties at form, meta and
-field-entry level (`unknown_property`), a `type` not in the registry (`unknown_field_type`), a
-config that fails its type's config schema (codes from R4 at the config path) and a repeated
-`fieldId` (`duplicate_field_id`). The parsed schema has every config default written in, so a
-stored version does not change meaning if a default changes later, and parsing the parsed output
-again gives an equal value. — _US2_
+parsed schema or every error with its path. It refuses unknown properties (`unknown_property`
+{key}, with its path) at form, meta and field-entry level and inside every built-in field's
+config, each option entry included; a `type` not in the registry (`unknown_field_type`); a config
+that fails its type's config schema (codes from R4 at the config path); and a repeated `fieldId`
+(`duplicate_field_id`). Third-party fields are recommended, not required, to make their configs
+just as strict. A released config shape is frozen: a built-in config changes only with a new
+`schemaVersion` and a migration step (R7); a plugin cannot migrate stored versions, so it must not
+change its released config shape (with a strict config, a removed or renamed key would make every
+stored version that holds it fail with `unknown_property`). The parsed schema has every config
+default written in, so a stored version does not change meaning if a default changes later, and
+parsing the parsed output again gives an equal value. — _US2_
 
 **R7. Format version and migration.** Stored schemas are read through one public entry point that
 first brings the input to the current format and then validates it (R6). In this item the current
-format is `schemaVersion: 1`; a missing, non-integer or unknown version (e.g. `0`, `2`, `"1"`) is
-refused with `unsupported_schema_version` before any other check. Every future change to the
-stored format — including any built-in field's config — bumps the literal and adds a migration
-step from the previous version; stored published versions are migrated when read, never rewritten
+format is `schemaVersion: 1`. Input that is not a JSON object is refused with `invalid` at the
+root; otherwise a missing, non-integer or unknown version (e.g. `0`, `2`, `"1"`) is refused with
+`unsupported_schema_version` before any other check. Every future change to the stored format —
+including any built-in field's config — bumps the literal and adds a migration step from the
+previous version; stored published versions are migrated when read, never rewritten
 (constitution 8). — _US2_
 
 ### Whole-response validation
@@ -320,9 +346,12 @@ step from the previous version; stored published versions are migrated when read
 **R8. One call validates a whole response.** Given a parsed Form Schema, its registry and a
 candidate answer set (any JSON value), one public call returns either success with the normalised
 answer set, or failure with every error found, grouped by `fieldId` plus one group for the answer
-set as a whole. It checks all fields (never stops at the first error), never throws for any JSON
-input, gives the same result in Node and in a browser, and needs nothing outside this package
-(ADR 0007), so the server can re-validate without trusting client checks. — _US3_
+set as a whole. It checks all fields (never stops at the first error), gives the same result in
+Node and in a browser, and needs nothing outside this package (ADR 0007), so the server can
+re-validate without trusting client checks. The package and the built-in fields never throw for
+any JSON input. An exception thrown by a third-party field's own code (e.g. its answer or
+"unanswered" rule) propagates to the caller unchanged: a broken plugin must be loud, not disguised
+as an invalid answer. — _US3_
 
 **R9. Answered, unanswered and unknown.** A field is unanswered when its key is absent or `null`;
 built-in fields are also unanswered when text is blank after trimming, a selection is empty or a
@@ -343,16 +372,19 @@ leading and trailing whitespace. Its length is the number of user-perceived char
 trimming — extended grapheme clusters as defined by Unicode UAX #29 — so a Thai consonant with the
 vowel and tone marks written above or below it, an emoji with a skin-tone modifier and an emoji ZWJ
 sequence each count 1 (`too_short` / `too_long`). The count is the same in Node and in modern browsers, so the browser
-and the server accept exactly the same answers. `text` refuses line breaks (`invalid`), `textarea`
-keeps them. `toCell` returns the trimmed text. Stored value: the text. Analytics: `text`,
-`responses`, not groupable. — _US4_
+and the server accept exactly the same answers. A line break is an ECMAScript line terminator: LF,
+CR, LS (U+2028) or PS (U+2029); NEL (U+0085), VT and FF are not line breaks. `text` refuses line
+breaks (`invalid`), `textarea` keeps them. `toCell` returns the trimmed text. Stored value: the
+text. Analytics: `text`, `responses`, not groupable. — _US4_
 
 **R11. `number`.** Config: optional finite `min` and `max` with `min` ≤ `max` (`invalid_range`),
 and `integer` (default `false`). Answer: a finite JSON number (a numeric string such as `"5"` is
 `invalid`); decimals are allowed unless `integer` is set (`not_integer`); bounds are inclusive
-(`too_small` / `too_big`). There is no precision or step setting. `toCell` writes the number
-without locale formatting: ASCII digits, `.` as decimal point, no grouping. Stored value: the
-number. Analytics: `number`, `histogram+stats`, not groupable. — _US4_
+(`too_small` / `too_big`). There is no precision or step setting. `toCell` writes the number in
+plain decimal notation, never exponent notation, and without locale formatting: ASCII digits, an
+optional leading `-`, `.` as decimal point, no grouping (`1e+21` → `1000000000000000000000`,
+`1e-7` → `0.0000001`); the cell reads back as the same number. Stored value: the number.
+Analytics: `number`, `histogram+stats`, not groupable. — _US4_
 
 **R12. `rating`.** Config: `max`, an integer from 2 to 10 (default 5); `icon`, `star` or `heart`
 (default `star`); the minimum is always 1. Answer: an integer from 1 to `max` (`not_integer`,
@@ -363,13 +395,16 @@ incompatible, so a rescaled rating needs a new `fieldId` and averages and split-
 (owner decision 2026-11-05); a change of `icon` is compatible. — _US4_
 
 **R13. `choice`, `dropdown`, `checkbox`: config.** Shared config: `options`, an ordered list of at
-least one `{ id, label }` (`too_few` {min: 1}) with unique IDs (`duplicate_option_id`) and
-non-blank labels; `allowOther` (default `false`); `otherLabel`, a non-blank plain string in the
-form's language, required when `allowOther` is true (the package supplies no default text).
-`checkbox` adds optional `minSelections` and `maxSelections` (integers ≥ 0, `minSelections` ≤
-`maxSelections`, and `minSelections` no more than the number of options plus one if "Other" is
-allowed; otherwise `invalid_range`). `choice` and `dropdown` have the same config and answer rules
-and differ only in how they are rendered (002). — _US5_
+least one `{ id, label }` (`too_few` {min: 1}; no other keys, R6) with unique IDs
+(`duplicate_option_id`) and non-blank labels; `allowOther` (default `false`); `otherLabel`, a
+non-blank plain string in the form's language, required when `allowOther` is true (the package
+supplies no default text). A missing or blank option label, a blank `otherLabel`, and a missing
+`otherLabel` while `allowOther` is true fail with `required`. `checkbox` adds optional
+`minSelections` (integer ≥ 0) and `maxSelections` (integer ≥ 1, so `maxSelections: 0` fails with
+`too_small` {min: 1}); `minSelections` must not exceed `maxSelections` when both are set, nor the
+number of options plus one if "Other" is allowed (otherwise `invalid_range`). `choice` and
+`dropdown` have the same config and answer rules and differ only in how they are rendered (002).
+— _US5_
 
 **R14. `choice`, `dropdown`, `checkbox`: answers, cells, stored values.** All three use one answer
 shape: an object with exactly `optionIds`, a list of selected option ID strings, and `other`, a
@@ -383,14 +418,16 @@ string, `optionIds` that is not a list of strings, an extra property) is `invali
   appear twice (`duplicate`).
 - `choice` and `dropdown` allow at most one ID in `optionIds` (`too_many` {max: 1}).
 - When `other` is selected, `other` is required and must be non-empty after trimming; missing,
-  empty or whitespace-only text fails with `other_text_required`, and the normalised answer holds
-  the trimmed text. When `other` is not selected, the `other` property must be absent: any value,
-  even `""` or `null`, is `invalid`.
+  `null`, empty or whitespace-only text fails with `other_text_required` (`null` counts as
+  missing), and the normalised answer holds the trimmed text. When `other` is not selected, the
+  `other` property must be absent: any value, even `""` or `null`, is `invalid`.
 - For `checkbox`, "Other" counts as one selection toward `minSelections` / `maxSelections`
   (`too_few` / `too_many`); these limits apply only when the field is answered.
-- `toCell` writes the option's label; "Other" as `<otherLabel>: <text>`; `checkbox` lists its
-  selections in the config's option order with "Other" last, joined by `; `. An ID that the given
-  config does not contain is written as the ID itself.
+- `toCell` writes the option's label, and "Other" as `<otherLabel>: <text>`, or as
+  `other: <text>` when the given config has no `otherLabel` (e.g. a later version with "Other"
+  switched off). An ID that the given config does not contain is written as the ID itself.
+  `checkbox` lists the selected options that the config contains in its option order, then the IDs
+  it does not contain in answer order, then "Other" last, all joined by `; `.
 - Stored values: one `text` value per selected ID, with `other` for "Other"; the free text stays
   only in the normalised answer (item 003 decides whether `Answer` needs a column for it).
 - Analytics: `text`, `counts` ("Other" is one bucket), groupable.
@@ -401,10 +438,11 @@ string, `optionIds` that is not a list of strings, an extra property) is `invali
 
 - Without time: the answer is a real calendar date `YYYY-MM-DD` (years 0001–9999). It is never
   shifted or converted; stored value of kind `date`.
-- With time: the answer is an ISO 8601 date-time with hours and minutes, optional seconds and
-  fraction, and an explicit `Z` or `±HH:MM` offset; without an offset it fails with
-  `offset_required`. It is normalised to the UTC instant `YYYY-MM-DDTHH:mm:ss.sssZ`; the original
-  offset is not kept. Stored value of kind `datetime`.
+- With time: the answer is an ISO 8601 date-time with hours and minutes, optional seconds with an
+  optional fraction of 1–9 digits, and an explicit `Z` or `±HH:MM` offset; without an offset it
+  fails with `offset_required`. It is normalised to the UTC instant `YYYY-MM-DDTHH:mm:ss.sssZ`: a
+  fraction is truncated (not rounded) to milliseconds, and the original offset is not kept. The
+  UTC instant must lie in years 0001–9999, else `invalid_date`. Stored value of kind `datetime`.
 - A date-time when `includeTime` is false, a date-only value when it is true, or an impossible date
   or time fails with `invalid_date`.
 - Analytics: `date` or `datetime` according to `includeTime`, `timeline`, not groupable.
@@ -415,13 +453,18 @@ string, `optionIds` that is not a list of strings, an extra property) is `invali
 is passed. For a date-time it returns the instant as ISO 8601 with milliseconds: in UTC with `Z`
 when no time zone is passed, otherwise in the given IANA time zone with that instant's offset
 (daylight saving applied) — e.g. `2026-11-04T10:30:00.000Z` with `Asia/Bangkok` gives
-`2026-11-04T17:30:00.000+07:00`. An unknown time zone fails with `invalid_time_zone`. Which zone
-the CSV uses is decided in item 007 (intent open question 1). — _US6_
+`2026-11-04T17:30:00.000+07:00`. An offset with seconds (historical local mean time) is rounded to
+the minute and the wall time shifted to match, so the cell still names the exact instant. The time
+zone is checked once, when the export options are validated, before any cell is written: a name
+that is not an IANA time zone (e.g. `Mars/Base`, `+07:00`, empty) fails with `invalid_time_zone`;
+`toCell` only ever receives validated options and never fails on a zone (R1). Which zone the CSV
+uses is decided in item 007 (intent open question 1). — _US6_
 
 **R17. `file`.** Config: `maxFiles` (integer ≥ 1, default 1); optional `maxSize` in bytes (integer
-≥ 1); optional `allowedTypes`, a list of MIME types such as `application/pdf` or `image/*`
-(malformed entries are `invalid`). Answer: a list of non-empty, opaque file ID strings, no ID twice
-(`duplicate`), at most `maxFiles` (`too_many`). The answer holds references only: size and type
+≥ 1); optional `allowedTypes`, a list of at least one MIME type (`[]` fails with `too_few`
+{min: 1}) such as `application/pdf` or `image/*` (malformed entries and `*/*` are `invalid`).
+Answer: a list of non-empty, opaque file ID strings, no ID twice (`duplicate`), at most `maxFiles`
+(`too_many`). The answer holds references only: size and type
 limits are enforced against the upload in item 006, and whether an ID exists and belongs to this
 respondent and field is checked in 005/006, because this package cannot see files. `toCell` joins
 the IDs in answer order with `; ` (item 007 turns them into names and download paths). Stored
@@ -489,12 +532,13 @@ without a comment. — _US1–US7_
 - A stored version using a type that is no longer registered (a plugin removed from the instance)
   fails with `unknown_field_type`, also when it is read as an earlier version for the R19 check;
   fields are never dropped silently.
-- A plugin whose config schema becomes stricter can make older stored versions fail. Type strings
-  are permanent (ADR 0007), so plugin authors must keep config backward compatible; built-in
-  config changes go through `schemaVersion` migration (R7). Likewise, a plugin release that
-  changes the `storeAs` it gives for a config, or tightens its answer-compatibility rule, can make
-  an existing version history conflict, so the next publish of such a form is refused (R19);
-  plugin authors must keep both stable.
+- A plugin whose config schema changes after release can make older stored versions fail (e.g. a
+  strict config refuses a key it no longer knows with `unknown_property`). Type strings are
+  permanent (ADR 0007) and a released config shape is frozen (R6), so plugin authors must not
+  change it; built-in config changes go through `schemaVersion` migration (R7). Likewise, a plugin
+  release that changes the `storeAs` it gives for a config, or tightens its answer-compatibility
+  rule, can make an existing version history conflict, so the next publish of such a form is
+  refused (R19); plugin authors must keep both stable.
 - Repeated `fieldId` in one schema → `duplicate_field_id`; the same option ID twice in one field →
   `duplicate_option_id`; the same option ID in two different fields is allowed (IDs are scoped per
   field). Duplicate option **labels** are allowed (IDs identify options); CSV cells then cannot
@@ -518,11 +562,18 @@ without a comment. — _US1–US7_
 - Unknown answer keys → `unknown_field`; all other fields are still checked and reported.
 - An answer set that is an array, string, number or `null` → `invalid` for the whole set, never a
   thrown exception.
+- A third-party field whose own code throws (e.g. a bug in its answer or "unanswered" rule): the
+  exception propagates out of whole-response validation to the caller and is never turned into
+  `invalid` or `required` (R8). It is a server fault for 005 to report, not the respondent's
+  mistake.
+- A third-party rule that raises a code outside R4's list comes out as `invalid`; the catalogue is
+  closed in MVP (R4).
 - Duplicate or malformed `type`, or incompatible analytics data → refused when the definition or
   registry is created, before any form is read.
 - `toCell` given an option ID that the passed config no longer has (option removed in a later
   version) writes the raw ID instead of failing.
-- `toCell` given an unknown time zone → `invalid_time_zone`.
+- An unknown time zone for date-time cells → `invalid_time_zone` when the export options are
+  validated, once and before any cell is written; `toCell` never receives it (R1, R16).
 - The package has one validity level. Whether the Builder may autosave a draft that is
   temporarily invalid (e.g. a label cleared mid-edit) is decided in 003/004.
 
@@ -531,7 +582,9 @@ without a comment. — _US1–US7_
 - This item has no route, session or auth surface; the admin/respondent split is not exercised
   directly, but the contract must not let anything cross between the worlds:
   - The Form Schema goes to respondents, so it holds only respondent-visible content; refusing
-    unknown properties keeps admin-only data out of it.
+    unknown properties (form, meta, field entries, built-in configs and option entries) keeps
+    admin-only data out of it. A third-party config that keeps unknown keys could carry extra data
+    to respondents, hence the recommendation that plugin configs be strict (R6).
   - Answers are untrusted respondent input. The server must re-validate every submission with R8
     alone; client validation (002) is only a convenience.
   - File IDs in an answer are untrusted: this package checks shape and count only. Items 005/006
@@ -558,11 +611,13 @@ without a comment. — _US1–US7_
   emoji `👨‍👩‍👧‍👦` (four people joined by three ZWJ, 7 code points) counts 1; the flag `🇹🇭` counts 1.
   Node and modern browsers must give the same count (proven in Node and in Chromium, AC15), and
   the renderer's character counter (002) must use the same rule so client and server agree.
-- `meta.language` accepts any well-formed BCP 47 tag (`th`, `en`, `ja`, `th-TH`). The respondent UI
-  locale is derived from it in 005 through `resolveRespondentLocale` (000 R26): a tag with a
-  region such as `th-TH` should resolve to `th`; unsupported languages fall back to `en`.
+- `meta.language` accepts Unicode BCP 47 locale identifiers (`th`, `en`, `ja`, `th-TH`) and keeps
+  their canonical form (`th-th` → `th-TH`); rare BCP 47-only forms (extended language subtags,
+  private-use-only and grandfathered tags) are `invalid` (R5). The respondent UI locale is derived
+  from it in 005 through `resolveRespondentLocale` (000 R26): a tag with a region such as `th-TH`
+  should resolve to `th`; unsupported languages fall back to `en`.
 - Numbers are JSON numbers: Thai digits (`๑๒๓`) or grouped strings (`"1,000"`) are refused; the
-  renderer converts input. `toCell` output uses ASCII digits.
+  renderer converts input. `toCell` output uses ASCII digits in plain decimal notation (R11).
 - Dates are Gregorian ISO with ASCII digits. A Buddhist Era year (`2569-11-04`) is a valid
   Gregorian date to this package, so 002 must convert BE input before sending it.
 
@@ -574,16 +629,32 @@ without a comment. — _US1–US7_
 - Date-only is never shifted: `2026-11-04` stays `2026-11-04` in every zone, including
   `Pacific/Kiritimati` (UTC+14) and `Pacific/Pago_Pago` (UTC−11).
 - `2026-02-29` → `invalid_date`; `2028-02-29` is valid; `T24:00` and `T23:59:60` → `invalid_date`.
+- Fractions of a second: 1–9 digits are accepted and truncated to milliseconds, never rounded:
+  `2026-11-04T10:30:00.123456789Z` → `2026-11-04T10:30:00.123Z`, `.9999` → `.999`.
+- The UTC instant must lie in years 0001–9999: `0001-01-01T00:30+01:00` (UTC year 0000) and
+  `9999-12-31T23:30-01:00` (UTC year 10000) → `invalid_date`.
 - Daylight saving: an `America/New_York` cell has offset `-05:00` for a January instant and
   `-04:00` for a July instant.
-- "Other" chosen with the `other` text missing, empty or whitespace-only → `other_text_required`;
-  `other` text present (even `""` or `null`) while `other` is not selected → `invalid`.
+- A date-time cell in a zone whose offset at that instant has seconds (local mean time, before
+  about 1900) gets a whole-minute offset and still names the same instant (R16).
+- Export options with time zone `Mars/Base`, `+07:00` or `""` → `invalid_time_zone`.
+- "Other" chosen with the `other` text missing, `null`, empty or whitespace-only →
+  `other_text_required`; `other` text present (even `""` or `null`) while `other` is not selected
+  → `invalid`.
 - Checkbox with `maxSelections: 2`, two options plus "Other" chosen → `too_many` {max: 2};
-  `minSelections: 2` with one option plus "Other" → valid.
+  `minSelections: 2` with one option plus "Other" → valid; `maxSelections: 0` in config →
+  `too_small` {min: 1}.
 - `choice` with two selected IDs → `too_many` {max: 1}.
 - `allowOther: false` and `other` selected → `unknown_option` {optionId: "other"}.
 - `file` with `maxFiles: 1` and two IDs → `too_many` {max: 1}; the same ID twice → `duplicate`.
+- `file` config `allowedTypes: []` → `too_few` {min: 1}; `*/*` → `invalid`; `image/*` is valid.
 - `number` with `integer: true`: `2` is valid, `2.5` → `not_integer`; `min` = `max` is allowed.
+- `number` cells never use exponent notation: `1e21` → `1000000000000000000000`, `1e-7` →
+  `0.0000001`, `-0.25` → `-0.25`.
+- Unknown keys inside a built-in config (rating `{ "max": 5, "color": "red" }`) or an option entry
+  (`{ "id": "…", "label": "…", "value": 1 }`) → `unknown_property` at that path.
+- `text` with an inner LF, CR, U+2028 or U+2029 → `invalid`; NEL (U+0085), VT and FF are not line
+  breaks.
 - `rating` config `max` of 1, 11 or 4.5 → config error; answer `0` → `too_small`, `max + 1` →
   `too_big`, `3.5` → `not_integer`.
 - `text` config `maxLength: 0` → `too_small`; `minLength` > `maxLength` → `invalid_range`.
@@ -629,21 +700,28 @@ without a comment. — _US1–US7_
       fixture gives an empty list. (R2, R14, R17)
 - [ ] **AC8** Unit: every error produced by the failure cases of AC4–AC27 and AC29 (definitions,
       registry, schema, answers, cells, version history) has a code, params and a location and no
-      message text, and every code produced by the package is in R4's list. (R4)
+      message text, and every code produced by the package is in R4's list; a fixture rule that
+      raises a code outside the list comes out as `invalid`. (R4)
 - [ ] **AC9** Unit: a valid schema parses with defaults written in (`required` false, rating `max` 5
       and `icon` `star`, number `integer` false, `allowOther` false, `includeTime` false,
       `maxFiles` 1); parsing the result again gives an equal value; `meta.language` `TH` comes back
-      as `th`. (R5, R6)
+      as `th` and `th-th` as `th-TH`. (R5, R6)
 - [ ] **AC10** Unit: each invalid schema fails with its code and path — repeated `fieldId`; repeated
       option ID in one field (the same ID in two fields passes); option ID `other` and `fieldId`
       `__proto__` (`reserved_id`); `fieldId` with a space or 65 characters; unknown type; config
       errors (rating `max` 11, text `minLength` > `maxLength`); unknown property at form, meta and
-      field level; blank title or label; language `en_US` or empty. (R5, R6)
+      field level and inside a built-in config (rating `{ "max": 5, "color": "red" }`), each
+      `unknown_property` at its path; blank title or label (`required`); language `en_US`,
+      `x-private` or empty (`invalid`). (R5, R6)
 - [ ] **AC11** Unit: the read entry point accepts `schemaVersion: 1` and refuses a missing
-      version, `0`, `2` and `"1"` with `unsupported_schema_version` and no other error. (R7)
+      version, `0`, `2` and `"1"` with `unsupported_schema_version` and no other error; input that
+      is not an object (`null`, `[]`, `"x"`) is refused with `invalid` at the root and no other
+      error. (R7)
 - [ ] **AC12** Unit: with the fixture field, a valid answer set returns the normalised set; a set
       with three bad fields returns three `fieldId` groups; inputs `null`, `[]`, `"x"`, `1` and
-      deeply nested garbage return a whole-set `invalid` without throwing. (R8, R9)
+      deeply nested garbage return a whole-set `invalid` without throwing; a fixture field whose
+      own answer rule throws makes the call throw that same exception instead of reporting
+      `invalid`. (R8, R9)
 - [ ] **AC13** Unit: absent, `null`, blank text, empty selection and empty file list give
       `required` when required and are omitted when optional; keys not in the schema (including
       `__proto__` and `constructor`) give `unknown_field` and leave the other fields' results
@@ -656,20 +734,23 @@ without a comment. — _US1–US7_
       `maxLength: 4` and fails `maxLength: 3` with `too_long` {max: 3}; `textarea` counts `a\r\nb`
       as 3. These cases give identical results when run in Node and in Chromium, a real browser
       engine; a simulated browser environment inside Node does not satisfy this, as it uses Node's
-      own engine and Unicode data. `text` with a line break is `invalid` while `textarea` keeps
-      it; `toCell` returns the trimmed text. (R10, R20)
+      own engine and Unicode data. `text` with an inner LF, CR, U+2028 or U+2029 is `invalid`
+      while `textarea` keeps it; `toCell` returns the trimmed text. (R10, R20)
 - [ ] **AC16** Unit: `number` accepts `2.5` by default and gives `not_integer` with `integer`;
-      bounds are inclusive; `"5"` is `invalid`; `toCell(1234.5)` is `"1234.5"` and
-      `toCell(-0.25)` is `"-0.25"`. (R11)
+      bounds are inclusive; `"5"` is `invalid`; `toCell(1234.5)` is `"1234.5"`,
+      `toCell(-0.25)` is `"-0.25"`, `toCell(1e21)` is `"1000000000000000000000"` and
+      `toCell(1e-7)` is `"0.0000001"` (never exponent notation). (R11)
 - [ ] **AC17** Unit: `rating` config defaults and errors and answer errors match the Limits cases;
       `toCell(4)` is `"4"`. (R12)
-- [ ] **AC18** Unit: option config with no options, a blank option label, repeated option IDs,
-      option ID `other`, `allowOther` without `otherLabel`, checkbox `minSelections` >
-      `maxSelections`, or `minSelections` above the selectable count is refused with its code.
-      (R13)
+- [ ] **AC18** Unit: option config is refused with its code for: missing `options`, a blank option
+      label, or `allowOther` without `otherLabel` (`required`); an empty `options` list (`too_few`
+      {min: 1}); repeated option IDs (`duplicate_option_id`); option ID `other` (`reserved_id`);
+      an option entry with an extra key such as `value` (`unknown_property`); checkbox
+      `maxSelections: 0` (`too_small` {min: 1}); checkbox `minSelections` > `maxSelections` or
+      `minSelections` above the selectable count (`invalid_range`). (R6, R13)
 - [ ] **AC19** Unit: option answers match the Limits cases — `choice` and `dropdown` with two IDs,
-      `other` while "Other" is off, "Other" selected with the `other` text missing, `""` or `"  "`
-      (`other_text_required`), `other` text present (including `""` and `null`) without the
+      `other` while "Other" is off, "Other" selected with the `other` text missing, `null`, `""`
+      or `"  "` (`other_text_required`), `other` text present (including `""` and `null`) without the
       selection (`invalid`), checkbox "Other" counted toward min/max, optional checkbox with
       `minSelections: 2`, unknown and repeated IDs. A bare ID string, `optionIds` that is not a
       list of strings and an extra property are `invalid`; `{ "optionIds": [] }` is unanswered;
@@ -679,20 +760,28 @@ without a comment. — _US1–US7_
       with the example form's config, `optionIds` `["c9Rk_4NnYb1E", "Qm2xT8aLp0vW"]` gives
       `Facebook; เพื่อนแนะนำ` (config order, not answer order) and `["other", "c9Rk_4NnYb1E"]`
       with `other` `TikTok` gives `เพื่อนแนะนำ; อื่นๆ: TikTok` ("Other" last); an unknown option
-      ID as the ID itself. (R14)
+      ID as the ID itself, and `["Rm0vedOpt123", "c9Rk_4NnYb1E", "other"]` with `other` `TikTok`
+      gives `เพื่อนแนะนำ; Rm0vedOpt123; อื่นๆ: TikTok` (known options, then unknown IDs in answer
+      order, then "Other"); with a config that has no `otherLabel`, "Other" is written as
+      `other: TikTok`. (R14)
 - [ ] **AC21** Unit: date-only `2026-11-04` is accepted unchanged, `2026-02-29` is `invalid_date`,
       a date-time while `includeTime` is false is `invalid_date`; `toCell` returns `2026-11-04`
       with no zone, `Pacific/Kiritimati` and `Pacific/Pago_Pago`. (R15, R16)
 - [ ] **AC22** Unit: with `includeTime`, `2026-11-04T17:30+07:00` → `2026-11-04T10:30:00.000Z`,
       `2026-11-04T01:00:00+07:00` → `2026-11-03T18:00:00.000Z`, `2026-11-04T17:30:00` →
-      `offset_required`, `2026-11-04` → `invalid_date`; `storeAs` is `datetime`, and `date` without
-      `includeTime`. (R15)
+      `offset_required`, `2026-11-04` → `invalid_date`; `2026-11-04T10:30:00.123456789Z` →
+      `2026-11-04T10:30:00.123Z` (truncated); `0001-01-01T00:30+01:00` and
+      `9999-12-31T23:30-01:00` → `invalid_date` (UTC instant outside years 0001–9999); `storeAs`
+      is `datetime`, and `date` without `includeTime`. (R15)
 - [ ] **AC23** Unit: date-time `toCell` gives `…Z` with no zone, `2026-11-04T17:30:00.000+07:00`
-      for `Asia/Bangkok`, `-05:00` / `-04:00` for `America/New_York` in January / July, and
-      `invalid_time_zone` for `Mars/Base`; results are identical with the test process time zone
-      set to two different zones. (R1, R16)
-- [ ] **AC24** Unit: `file` config defaults to `maxFiles` 1 and refuses `maxFiles` 0 and a malformed
-      MIME entry; answers with too many IDs, a repeated ID or an empty ID fail with `too_many`,
+      for `Asia/Bangkok`, `-05:00` / `-04:00` for `America/New_York` in January / July; an
+      instant whose offset in the given zone has seconds (historical local mean time) gives a
+      whole-minute offset and a cell that names the same instant; validating export options with
+      `Mars/Base` or `+07:00` gives `invalid_time_zone`; results are identical with the test
+      process time zone set to two different zones. (R1, R16)
+- [ ] **AC24** Unit: `file` config defaults to `maxFiles` 1, accepts `image/*` and refuses
+      `maxFiles` 0, `allowedTypes: []` (`too_few` {min: 1}), a malformed MIME entry and `*/*`
+      (`invalid`); answers with too many IDs, a repeated ID or an empty ID fail with `too_many`,
       `duplicate`, `invalid`; `toCell` joins IDs with `; `. (R17)
 - [ ] **AC25** Unit: 100,000 generated IDs all pass R5's ID rules, have the same length (at least 11
       URL-safe characters), contain no duplicate, and the same test passes when run in Chromium, a
@@ -709,9 +798,12 @@ without a comment. — _US1–US7_
       `date`, storeAs: `datetime`, version: v1}; true → false is refused too; the same field with
       only its label changed passes. A fixture field whose `storeAs` depends on its config is
       refused with `field_kind_changed` too when that config flips its kind. (R2, R19)
-- [ ] **AC28** Check: the package's unit tests pass both in Node and in Chromium, a real browser
-      engine, with the same results (a simulated browser environment inside Node does not satisfy
-      this); `pnpm lint` and `pnpm typecheck` pass with the strict settings. (R8, R20)
+- [ ] **AC28** Check: the shared unit tests — every unit test of the package except the few that by
+      nature inspect one environment (in Node: the manifest, the build output, the process time
+      zone; in Chromium: that it is a real browser) — pass both in Node and in Chromium, a real
+      browser engine, with the same results and no test skipped depending on the environment (a
+      simulated browser environment inside Node does not satisfy this); `pnpm lint` and
+      `pnpm typecheck` pass with the strict settings. (R8, R20)
 - [ ] **AC29** Unit: a `rating` field with `max` 5 in v1 and 10 in v2 under the same `fieldId` is
       refused with `field_config_incompatible` {fieldId, type: `rating`, properties: [`max`],
       version: v1}; 10 → 5 is refused too, and so is v1 `max` 5, v2 without the field, candidate
@@ -795,15 +887,25 @@ none of them blocks `/impl-plan`. Each flag keeps its remaining action.
    - R10 and R20 say "modern" / "current" browsers, but only Chromium is tested. Firefox and
      Safari use other engines and their own Unicode data, so parity there is not proven by this
      item — a residual risk unless the owner adds those engines later.
-9. **Size is at the ADR 0006 limit: 20 of 20 requirements**, with R4, R14 and R19 dense. Both
+   - `meta.language` canonicalisation (R5) replaces deprecated aliases (e.g. `iw` → `he`) from the
+     engine's CLDR data, and Node and browsers can ship different CLDR versions, so a rarely used
+     deprecated tag could be canonicalised differently in the browser and on the server. The
+     server's result is the one stored (003 and 005 re-validate); the ACs use only stable tags
+     (`th`, `TH`, `th-th`, `th-TH`, `en`, `en_US`, `x-private`).
+9. **Size is at the ADR 0006 limit: 20 of 20 requirements**, with R4, R14 and R19 dense. All three
    rounds of 2026-11-05 answers were written into existing requirements (the second round extended
-   R1, R4, R12 and R19 and added AC29); no requirement was added and nothing was trimmed. If
+   R1, R4, R12 and R19 and added AC29; the third, after `/analyze`, extended R1, R4–R8, R10, R11
+   and R13–R17 and existing ACs); no requirement or AC was added and nothing was trimmed. If
    `/tasks` goes over 40 tasks, apply the intent's fallback split (open question 7) along story
-   lines: US1–US4 and US7 stay in `001-field-core`; US5 (option fields with "Other") and US6
-   (date, file) move to `001b`, taking AC27's `date` case with them (AC27's fixture case stays).
+   lines, as plan.md Risk 6 does: US5 (option fields with "Other") and US6 (date, file) move to
+   `001b` with AC18–AC24 and every row of another AC that needs an option, date or file built-in —
+   those rows of AC6, AC7, AC9 and AC13, AC27's `date` case and AC29's option-field and `file`
+   rows. US1–US4 and US7 stay in `001-field-core`, with AC27's fixture case and AC29's other rows,
+   and US7 is built right after US4.
 10. **No BI creep.** `summarize` and `groupable` are data only; no charts, pivot tables, formulas or
     dashboards. No custom condition language. Intent open question 1 (CSV time zone) stays with
-    item 007; this item only accepts an optional time zone in `toCell` (R16).
+    item 007; this item only accepts an optional time zone in the export options that `toCell`
+    receives (R16).
 
 ## Clarifications
 
@@ -846,3 +948,22 @@ none of them blocks `/impl-plan`. Each flag keeps its remaining action.
 - Q: Must the disagreements with brief §5/§6 and ADRs 0003/0007/0009/0011 be settled before
   `/impl-plan`? → A: No; they are accepted as known gaps. The ADRs are amended during
   `/impl-plan`; the owner updates the brief later. (Flags 1–7)
+- Q: How does `number`'s `toCell` write very large or very small numbers (`/analyze` F04)? → A:
+  Always in plain decimal notation, never exponent notation: ASCII digits, an optional leading
+  `-`, `.` as decimal point, no grouping; `1e+21` → `1000000000000000000000`, `1e-7` →
+  `0.0000001`. (R11, Edge cases, AC16)
+- Q: Do built-in configs and option entries refuse unknown keys, and must plugins do the same
+  (`/analyze` F06)? → A: Built-in configs and option entries are strict: unknown keys fail with
+  `unknown_property` at their path. Plugin authors are recommended, not required, to use strict
+  configs. A config shape is frozen once released. (Schema section, R6, R13, Edge cases, AC10,
+  AC18)
+- Q: Does "never throws for any JSON input" also cover third-party fields (`/analyze` F08)? → A:
+  No. It covers the package and the built-in fields; an exception thrown by a plugin's own code
+  propagates to the caller, so a broken plugin is loud rather than disguised as an invalid answer.
+  (R8, Edge cases, AC12)
+- Q: May checkbox `maxSelections` be 0 (`/analyze` F27)? → A: No. `maxSelections` must be ≥ 1,
+  and ≥ `minSelections` when both are set; `maxSelections: 0` is refused in config (`too_small`
+  {min: 1}, the code `maxLength: 0` already gives). (R13, Edge cases, AC18)
+- Spec synced with the approved plan.md and ADR 0012 after `/analyze` (no owner decision): F03,
+  F05, F07, F11, F12, F13, F14, F15, F17, F18, F19, F20, F25, F26. (Terms, R1, R4, R5, R7, R10,
+  R13–R17, Edge cases, AC8–AC11, AC15, AC18–AC20, AC22–AC24, AC28, Flags 8, 9)
