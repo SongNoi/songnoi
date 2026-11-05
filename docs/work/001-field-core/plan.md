@@ -115,9 +115,11 @@ registry last in every call.
 index.ts              public barrel: export * from api.ts and fields/index.ts — nothing else
 api.ts                the public API without built-ins; the only module fields/** may import
 core/                 internal, never imported by fields/**
-  issues.ts           issueSchema, Issue, customIssue, Zod-issue mapping, result helpers
+  issues.ts           issueSchema, Issue, customIssue, Zod-issue mapping, result helpers,
+                      FieldDefinitionError
   json.ts             isPlainObject, own-key reads
   define-field.ts     defineField, FieldDefinition, storeAsOf, StoreAs/Summarize, fit table, checks
+                      (throws FieldDefinitionError from issues.ts)
   registry.ts         createFieldRegistry
   ids.ts              idSchema (the only copy of the ID pattern), reserved fieldIds, generateId
   text.ts             countGraphemes
@@ -347,6 +349,26 @@ Missing-vs-wrong-type uses Zod 4's `reportInput: true`; the input is dropped aft
 `.superRefine` / `.check`; an unknown or malformed code in `params` becomes `invalid`, so every code
 leaving the package is in the catalogue (AC8). Built-ins raise their own codes with `customIssue`
 wherever Zod's encoding is version-sensitive (e.g. `not_integer`, grapheme lengths).
+
+Implementation rules (decided in T006, pinned by `test/issues-rules.test.ts`):
+
+- **"Missing"** means the Zod issue has an own `input` key whose value is `undefined` (Zod 4.6.7
+  sets it only under `reportInput: true`). The missing rule is checked first, so it wins over
+  `expected: "int"`: a missing value for an int schema is `required` (schema) / `invalid` (answer).
+- **Precondition: parse with `{ reportInput: true }`.** Without it Zod deletes `input`, nothing
+  counts as missing, and a missing value maps to `invalid` (never `required`), so the fallback can
+  only be less specific, never wrong.
+- **Exclusive bounds** (`inclusive: false`: `.gt`, `.lt`, `.positive`, `.negative`) and limit issues
+  of any other origin (`bigint`, `date`, `file`, …) map to `invalid`: catalogue `{min}` / `{max}`
+  are inclusive limits, and turning `gt(0)` into `too_small {min: 0}` would misstate the rule.
+  Plugins needing a limit code there raise it with `customIssue`. Zod's origin `int` counts as
+  `number`.
+- **Every mapped issue is re-parsed with the strict `issueSchema`**; one that does not parse
+  becomes `invalid` at the same path. Path keys that are neither strings nor finite numbers (only
+  possible from a plugin's own `path`) are converted with `toString()`.
+- **`customIssue(code, params)`** returns `{ params: { code, params } }`, i.e. Zod's custom-issue
+  `params` carry the catalogue code and its params; `toIssues` reads them with own-key reads.
+- **`FieldDefinitionError.message`** is the issue codes in order, joined by `", "`, repeats kept.
 
 ### Built-in fields (R10–R17)
 
@@ -626,9 +648,9 @@ If the registry has none (schemas read with another registry) → `unknown_field
 | `tsdown.config.ts`                                                                     | Verify only (step 10): one entry, `platform: "neutral"`, ESM + `.d.ts`; edit only if `build-output.test.ts` finds Zod bundled or a non-relative import other than `zod`                                                                                                                                                                                                                                                                                                                                                                                                                 |
 | `src/index.ts`                                                                         | Public barrel: `api.ts` + built-ins; replaces the `VERSION` placeholder                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 | `src/api.ts` (new)                                                                     | Public API without built-ins; the only module `src/fields/**` may import                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
-| `src/core/issues.ts`                                                                   | `issueSchema`, `Issue`, `IssueCode`, `customIssue`, Zod-issue mapping, result helpers (R4)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| `src/core/issues.ts`                                                                   | `issueSchema`, `Issue`, `IssueCode`, `customIssue`, Zod-issue mapping, result helpers, `FieldDefinitionError` (R4)                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 | `src/core/json.ts`                                                                     | `isPlainObject`, own-key reads (`Object.hasOwn`)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
-| `src/core/define-field.ts`                                                             | `defineField`, `FieldDefinition`, `storeAsOf`, `StoreAs` / `Summarize` (Zod enums, types inferred), fit table, definition checks, `FieldDefinitionError` (R1, R2)                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| `src/core/define-field.ts`                                                             | `defineField`, `FieldDefinition`, `storeAsOf`, `StoreAs` / `Summarize` (Zod enums, types inferred), fit table, definition checks; throws `FieldDefinitionError` from `issues.ts` (R1, R2)                                                                                                                                                                                                                                                                                                                                                                                               |
 | `src/core/registry.ts`                                                                 | `createFieldRegistry` (R3)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | `src/core/ids.ts`                                                                      | `idSchema` (the only copy of the ID pattern, public), reserved `fieldId`s, `generateId` (R5, R18)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | `src/core/text.ts`                                                                     | `countGraphemes` (R10)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
@@ -650,6 +672,7 @@ If the registry has none (schemas read with another registry) → `unknown_field
 | `test/fixtures/hostile-json.ts` (new)                                                  | Shared corpus of hostile JSON values (what `JSON.parse` can return: wrong types, empty and blank strings, `-0`, `1e308`, arrays of mixed types, wrong option-answer shapes, own `__proto__` / `constructor` keys, a 10,000-deep nested array); created in step 5, reused by every family test and `builtins.test.ts` (AC12)                                                                                                                                                                                                                                                             |
 | `test/smoke.test.ts` (new in step 1, deleted in step 2)                                | Trivial shared test that proves both engines run before any feature code; deleted by the step-2 commit that adds `test/issues.test.ts`, the first real shared test                                                                                                                                                                                                                                                                                                                                                                                                                      |
 | `test/issues.test.ts`                                                                  | Catalogue equals R4's 29 codes; Zod mapping per context (incl. the `unknown_property` path); `customIssue`; `FieldDefinitionError` (AC8)                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| `test/issues-rules.test.ts` (new)                                                      | Rules decided in T006 (missing for int, exclusive bounds, no `reportInput`, `FieldDefinitionError.message`), `json.ts` and result helpers (AC8)                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | `test/public-api.test.ts`                                                              | Pinned list of runtime exports, no registry among them (AC4). Created in step 3; edited in the same commit by every step that adds a runtime export: 3 (`defineField`, `createFieldRegistry`, `storeAsOf`, `FieldDefinitionError`, `customIssue`, `issueSchema`), 4 (`CURRENT_SCHEMA_VERSION`, `parseFormSchema`, `idSchema`), 5 (`validateResponse`), 6 (`countGraphemes`), 8 (`parseCellOptions`), 9 (`generateId`, `checkVersionHistory`), 10 (the nine definitions, `builtInFields`)                                                                                                |
 | `test/define-field.test.ts`, `test/registry.test.ts`                                   | AC4–AC7 (fixture parts)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 | `test/types/define-field.test-d.ts`                                                    | Inferred types and `@ts-expect-error` cases, checked by `pnpm typecheck` (AC3)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
@@ -707,11 +730,12 @@ cross-checks the nine together.
    rules. Exit: `smoke.test.ts` passes in Node and in Chromium with `PLAYWRIGHT_CHROMIUM_PATH` set.
    This is the spike for Risk 2 — decide on the fallback here, before any feature code.
 2. **Foundational — error catalogue** (`feat(schema)`): `issueSchema`, mapping, `customIssue`,
+   `FieldDefinitionError`,
    `test/helpers/issues.ts`, `test/issues.test.ts`, `core/json.ts`; deletes `test/smoke.test.ts`
    (`issues.test.ts` is now the first real shared test).
 3. **US1 — define and register** (`feat(schema)`): fixtures; `define-field.test.ts`,
-   `registry.test.ts`, `types/define-field.test-d.ts`; then `defineField`, `storeAsOf`,
-   `FieldDefinitionError`, `core/cell-options.ts` with the cell-options schema and branded
+   `registry.test.ts`, `types/define-field.test-d.ts`; then `defineField`, `storeAsOf`
+   (throwing the step-2 `FieldDefinitionError`), `core/cell-options.ts` with the cell-options schema and branded
    `CellOptions` type (needed by `toCell`'s signature; exported as a type only), `createFieldRegistry`,
    `api.ts`, `index.ts`, `public-api.test.ts` (created). Proves AC3, AC5, AC6 (pairs), AC7 (`none`
    fixture), AC4 (registry part).
@@ -924,3 +948,14 @@ is created, P03 and P05 state behaviour the design already implied).
 - **P08** — the glossary covers the same terms as spec.md's Terms: adds "whole-response
   validation" → `validateResponse` and "version check" → `checkVersionHistory`; keeps "ID rules" →
   `idSchema`.
+
+### 2026-11-05 — implementation divergence (T006)
+
+- `FieldDefinitionError` is defined in `core/issues.ts` (T006, Order step 2) instead of
+  `core/define-field.ts` (main-session decision): T005's `issues.test.ts` already tests it, and it
+  depends only on `Issue`. `define-field.ts` (T010) imports and throws it; `api.ts` (T011) still
+  exports it. Module layout, Files to touch and Order steps 2 and 3 updated.
+- The rules the T005 tests left open (missing value for an int schema, exclusive bounds, parsing
+  without `reportInput`, `FieldDefinitionError.message` format) are decided and listed under the
+  Zod → catalogue mapping; `test/issues-rules.test.ts` (new) pins them, with `json.ts` and the
+  result helpers (`failure`, `prefixIssues`).
