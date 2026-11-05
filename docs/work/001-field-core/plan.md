@@ -1083,3 +1083,32 @@ Design unchanged; details the plan left open, as built in `src/core/text.ts` and
   issue and `invalid_range`; a wrong-type limit or nothing to compare gives no `invalid_range`.
 - **`toPlainDecimal`** reads the exponent with `Number.parseInt(…, 10)` (an integer from the
   string, not float arithmetic on `n`); everything else is the plan's string shift.
+
+### 2026-11-05 — implementation details (T020, T021)
+
+Design unchanged; details the T020 tests pinned and `src/fields/shared/options.ts` implements.
+
+- **`otherLabel` blank is refused even while `allowOther` is false** (`required` at
+  `["otherLabel"]`), following spec R13's wording ("a blank `otherLabel` … fail[s] with
+  `required`"). "Option fields" above said only that `otherLabel` is required and non-blank when
+  `allowOther` is true; a non-blank one is still allowed and kept when it is false.
+- **Option-ID checks run on the list once every entry is well formed:** an `other` entry gives
+  only `reserved_id` and never counts as a repeat; each later repeat gives
+  `duplicate_option_id` at its own `["options", j, "id"]`. A missing `id` → `required`, a
+  non-string one → `invalid`. Only `other` is reserved for options (`Other`, `__proto__`,
+  `constructor`, `toString` are valid option IDs; option lookups use a `Set` of the config's
+  IDs, never object keys, so nothing is read through `Object.prototype`).
+- **Cross-field config rules** (`otherLabel` missing while `allowOther`, the two checkbox
+  `invalid_range` rules) are a `superRefine` on the strict config, so Zod skips them when a key
+  has an aborting issue (missing or malformed `options`, an unknown key): a config without
+  `options` gives only `required` plus any `unknown_property`.
+- **Answer rules, order and scope:** the answer parses as strict
+  `{ optionIds: string[], other?: string | null }` (so `null` reaches the "Other" rules); a wrong
+  shape stops there. Then, per index, a repeat → `duplicate {value}` (not also `unknown_option`),
+  else an ID that is not an own option, or `other` while "Other" is off → `unknown_option`. With
+  `other` selected while "Other" is off, its text is not checked (one `unknown_option` only).
+  `too_many` / `too_few` are counted on `optionIds.length` and only when it is non-zero, so
+  `{ optionIds: [], other: "x" }` gives only `invalid` at `["other"]`. The output is piped
+  through the strict normalised-answer schema (`OptionAnswer` is its `z.output`).
+- **`toCell` for an answer built by a caller** with `other` selected but no text writes
+  `<otherLabel>: ` (empty text); normalised answers always carry the text.
