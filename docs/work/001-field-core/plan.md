@@ -1033,3 +1033,29 @@ implements them.
   the catalogue's `found` cannot carry `NaN` or `Infinity`.
 - **Public types** added in this step: `FormSchema`, `FormMeta`, `FieldEntry` (all `z.output` of
   the static shapes, no hand-written duplicates).
+
+### 2026-11-05 — T014 test decisions (T015)
+
+Design unchanged; the T014 tests pinned these details the plan did not specify, and T015
+implements them in `core/response.ts`.
+
+- **Result shape, exactly:** `{ ok: true, answers }` or `{ ok: false, answerSet, fields }` with
+  no other keys; `answerSet` is always an array (empty when the set as a whole has no issue);
+  `fields` has a key only for a `fieldId` with at least one issue.
+- **Not a plain object** (`null`, array, string, number, boolean, the 10,000-deep array) →
+  `answerSet: [invalid @ []]`, `fields: {}`, nothing else checked.
+- **Paths:** `required`, `unknown_field` and `unknown_field_type` are at `[]`; a field's own issues
+  are at their path inside the answer (`toIssues(…, "answer")` on a `reportInput: true` parse).
+- **Order per field:** registry miss → absent / `null` → `isUnanswered(value, parsed config)` →
+  answer schema. Nothing is caught: an exception from the answer-schema factory, a refine or
+  `isUnanswered` reaches the caller as the same exception. `""` is not unanswered unless the
+  type's own rule says so.
+- **`unknown_field`:** one per own key of `Object.keys(answers)` that is not a schema `fieldId`
+  (`""`, `__proto__`, `constructor` included), in key order, in the answer-set group, even when
+  the form has no fields.
+- **Own keys only, no pollution:** values are read with `Object.hasOwn`, so a `fieldId` such as
+  `toString` never sees `Object.prototype`; the normalised set and `fields` are plain objects
+  written with `Object.defineProperty` (own data properties), keyed only by schema `fieldId`s.
+- **`AnswerSet`** is `z.output` of an internal `answerSetSchema = z.record(z.string(), z.json())`
+  (exported from `core/response.ts`, not from `api.ts`); answer outputs are cast to its value
+  type, because the definition type cannot state that answer schemas output JSON.
