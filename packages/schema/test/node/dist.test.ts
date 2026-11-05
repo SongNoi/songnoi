@@ -20,8 +20,8 @@ describe("built package", () => {
 
   it("can be imported through its exports map", async () => {
     const mod = (await import(fileURLToPath(new URL(pkg.exports["."].import, root)))) as {
-      VERSION: unknown
+      defineField: unknown
     }
-    expect(typeof mod.VERSION).toBe("string")
+    expect(typeof mod.defineField).toBe("function")
   })
 })

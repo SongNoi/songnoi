@@ -170,13 +170,17 @@ defineField({
   its runtime export stay in the US6 step (Order step 8, T025); see "Dates and UTC".
 - **Returned `FieldDefinition`** is a frozen object with the same members. Its function members are
   declared as **method signatures**, so a typed definition widens to `FieldDefinition` (defaults
-  `<string, Record<string, unknown>, unknown>`) and consumers can call `toCell(answer: unknown, …)`
+  `<string, Record<string, unknown>, unknown, StoreAs>`; the fourth parameter is the stored kind
+  `K`, so `storedValues` returns `readonly StoredValueOf<K>[]`) and consumers can call `toCell(answer: unknown, …)`
   through the registry without casts. If TypeScript still refuses the widening, one cast lives in
   `registry.ts` with a comment; never `any`.
 - **Provided optional members are required in the returned type.** `defineField` infers, from the
   input, which optional members (`isUnanswered`, `incompatibleChanges`) the caller provided, and its
-  return type makes exactly those non-optional (e.g. a generic parameter inferred from the member,
-  defaulting to `undefined` when absent, mapped to a required member). So
+  return type makes exactly those non-optional: each is marked by a generic inferred from the
+  member's return type with a private sentinel default (`R … = Absent`, `B … = Absent`), and the
+  return type is `Omit<FieldDefinition<…>, "isUnanswered" | "incompatibleChanges">` intersected
+  with each provided member as a required method (`[R] extends [Absent] ? unknown : { … }`),
+  written inline so a plugin's emitted declarations name only `FieldDefinition`. So
   `ratingField.incompatibleChanges(previous, next)` typechecks without `?.` (the rating test calls it
   directly, Proof AC29), and a definition without the member has no such property in its type. The
   widened `FieldDefinition` keeps both members optional, so generic code (`checkVersionHistory`,
@@ -959,3 +963,32 @@ is created, P03 and P05 state behaviour the design already implied).
   without `reportInput`, `FieldDefinitionError.message` format) are decided and listed under the
   Zod → catalogue mapping; `test/issues-rules.test.ts` (new) pins them, with `json.ts` and the
   result helpers (`failure`, `prefixIssues`).
+
+### 2026-11-05 — implementation divergence (T010, T011)
+
+Design unchanged in substance; these are the details the build settled.
+
+- **`FieldDefinition` has a fourth generic** `K extends StoreAs = StoreAs` (the stored kind), so
+  `storedValues` returns `readonly StoredValueOf<K>[]` on typed definitions (the T008 rows for
+  `acme/measure` and `acme/note`). The widened default is unchanged for generic code.
+- **P03 mechanism:** a defaulting-to-`undefined` generic is fixed to the default and an `& M`
+  intersection breaks `Answer` inference, so the return type uses sentinel-default generics and
+  `Omit<FieldDefinition<…>, …>` plus the two conditional members, written inline (no internal type
+  alias). A declaration-emit probe of the fixtures against the built `dist` gives types naming
+  only `FieldDefinition`, so plugins do not hit TS2742/TS4023; no Risk 3 fallback was needed.
+  `incompatibleChanges: () => []` and `isUnanswered: () => false` still count as provided.
+- **`FieldConfig<D>` / `FieldAnswer<D>`** take `D extends FieldDefinition` and read the parameter
+  types of `answer` and `toCell`.
+- **Definition checks:** a definition must be a plain object and its members are read as own
+  properties (`json.ts`); only the config's `safeParse` is read through the prototype chain (Zod
+  may define it there). A bad `kinds` entry is reported at `["analytics", "storeAs", "kinds", j]`;
+  repeated kinds are checked once against `summarize`; no fit issue is added when `storeAs` or
+  `summarize` is malformed.
+- **Registry:** a non-array argument → `invalid` at `[]`; a well-formed `type` counts for
+  `duplicate_field_type` even when other members of that entry are broken. `get` and `types` are on
+  a frozen object; `get` returns the registered object itself.
+- **`CellOptions` schema** is `z.strictObject({ timeZone: z.string().optional() })` branded
+  (strict, like the configs); T025 adds the refinement and decides the unknown-key code with its
+  tests.
+- **Open for review:** `storeAsOf` returns what a config-dependent `pick` returns without checking
+  it is one of the declared `kinds` (plugin misbehaviour, Risk 11).
