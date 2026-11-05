@@ -14,9 +14,11 @@ import {
   storeAsOf,
   type Summarize,
 } from "../../src/api"
+import { ratingField } from "../../src/fields/rating"
 import { acmeMeasure, acmeNote, acmeSignature } from "../fixtures/third-party"
 
-// T008 — type tests for `defineField` (AC3, R1; plan "defineField", P03).
+// T008 — type tests for `defineField` (AC3, R1; plan "defineField", P03). T017 adds the built-in
+// `rating` rows (AC3, rating part; AC29's direct call without `?.`).
 // Proven by `pnpm typecheck` (`tsc --noEmit`; the package tsconfig includes `test`, so this file
 // is compiled). Vitest does not run `*.test-d.ts` files (its include is `test/**/*.test.ts` and
 // typecheck mode is off), so nothing here executes: every assertion is a compile-time check, and a
@@ -54,6 +56,39 @@ describe("AC3: inferred config and answer types of the fixture field", () => {
   it("acme/note: config and answer types equal the expected types", () => {
     expectTypeOf<FieldConfig<typeof acmeNote>>().toEqualTypeOf<{ text: string }>()
     expectTypeOf<FieldAnswer<typeof acmeNote>>().toEqualTypeOf<boolean>()
+  })
+})
+
+describe("AC3: inferred config and answer types of the built-in rating (T017)", () => {
+  it("rating: config and answer types equal the expected types", () => {
+    expectTypeOf<FieldConfig<typeof ratingField>>().toEqualTypeOf<{
+      max: number
+      icon: "star" | "heart"
+    }>()
+    expectTypeOf<FieldAnswer<typeof ratingField>>().toEqualTypeOf<number>()
+  })
+
+  it("rating keeps its literal type string and widens to FieldDefinition", () => {
+    expectTypeOf(ratingField.type).toEqualTypeOf<"rating">()
+    expectTypeOf(ratingField).toExtend<FieldDefinition>()
+  })
+
+  it("rating's members receive the inferred types; stored values are numbers", () => {
+    type Rating = typeof ratingField
+    expectTypeOf<Rating["toCell"]>().parameter(0).toEqualTypeOf<number>()
+    expectTypeOf<Rating["toCell"]>().parameter(1).toEqualTypeOf<FieldConfig<Rating>>()
+    expectTypeOf<Rating["storedValues"]>().returns.toEqualTypeOf<readonly number[]>()
+  })
+
+  it("rating's incompatibleChanges is provided, so it is called directly (no ?. or !)", () => {
+    expectTypeOf<(typeof ratingField)["incompatibleChanges"]>().not.toBeNullable()
+    const changed = ratingField.incompatibleChanges(
+      { max: 5, icon: "star" },
+      { max: 10, icon: "star" },
+    )
+    expectTypeOf(changed).toEqualTypeOf<readonly ("max" | "icon")[]>()
+    // @ts-expect-error -- the rule takes parsed rating configs; "thumb" is not an icon
+    ratingField.incompatibleChanges({ max: 5, icon: "thumb" }, { max: 5, icon: "star" })
   })
 })
 

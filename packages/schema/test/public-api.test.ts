@@ -9,10 +9,12 @@ import * as api from "../src/index"
 
 // Export name -> `typeof` of its value. Phase 3 (US1): the field API without built-ins. Phase 4
 // (US2, T013): `CURRENT_SCHEMA_VERSION`, `parseFormSchema`, `idSchema`. Phase 5 (US3, T015):
-// `validateResponse`.
+// `validateResponse`. Phase 6 (US4, T018): `countGraphemes` (the built-in definitions themselves
+// join the barrel in T033).
 const PINNED_EXPORTS: Readonly<Record<string, string>> = {
   CURRENT_SCHEMA_VERSION: "number",
   FieldDefinitionError: "function",
+  countGraphemes: "function",
   createFieldRegistry: "function",
   customIssue: "function",
   defineField: "function",
