@@ -7,7 +7,9 @@ Source: [intent.md](./intent.md). Brief references: §2 (design rules), §5 (fie
 
 The owner decisions recorded in intent.md (interview 2026-11-04) are taken as given and are not
 re-opened here. Where the intent's open questions had a sound recommendation consistent with those
-decisions, it is stated below as a requirement. Two questions stay open as markers (R14, R19).
+decisions, it is stated below as a requirement. The two markers of the first draft (R14, R19) and
+two further questions (rating `groupable`, text length counting) were answered by the owner on
+2026-11-05 and are written into the sections below (log: Clarifications).
 
 ## How does the form schema change?
 
@@ -58,10 +60,13 @@ Each field entry:
 | `dropdown` | as `choice`                                                                     | as `choice` ¹                                                     | as `choice`                       | `counts`           | yes         |
 | `checkbox` | as `choice`, plus `minSelections`?, `maxSelections`?                            | set of options, optionally "Other" + text ¹                       | 1 × `text` per selection          | `counts`           | yes         |
 | `date`     | `includeTime` (`false`)                                                         | `YYYY-MM-DD`; with time, a UTC instant `YYYY-MM-DDTHH:mm:ss.sssZ` | 1 × `date`, or 1 × `datetime`     | `timeline`         | no          |
-| `rating`   | `max` (`5`, range 2–10), `icon` (`star` \| `heart`, default `star`)             | integer 1 … `max`                                                 | 1 × `number`                      | `distribution+avg` | no          |
+| `rating`   | `max` (`5`, range 2–10), `icon` (`star` \| `heart`, default `star`)             | integer 1 … `max`                                                 | 1 × `number`                      | `distribution+avg` | yes ²       |
 | `file`     | `maxFiles` (`1`), `maxSize`? (bytes), `allowedTypes`? (MIME types, `type/*` ok) | list of file IDs                                                  | 1 × `text` per file ID            | `count`            | no          |
 
-¹ The exact JSON shape is the open marker in R14. Recommended: `{ "optionIds": [...], "other"?: "..." }`.
+¹ One answer shape for all three: `{ "optionIds": [...], "other"?: "..." }`, where the reserved ID
+`other` marks the "Other" selection and `other` holds its text (R14).
+
+² Owner decision 2026-11-05; departs from the brief §5 example (Flag 5).
 
 Property names above are the proposed stored names; once released they are as permanent as `type`
 strings.
@@ -71,7 +76,9 @@ strings.
 A JSON object keyed by `fieldId`; each value has the answer shape of that field's type.
 Whole-response validation (R8) returns the **normalised** set: unanswered fields omitted, text
 trimmed, date-times in UTC. Item 005 stores that normalised set. The `Answer` rows (one per stored
-value, ADR 0007 point 5) come from each field's stored values (R2).
+value, ADR 0007 point 5) come from each field's stored values (R2). The answer shapes in the
+table, including the option-field object `{ "optionIds": [...], "other"?: "..." }`, are part of
+the stored format and as permanent as the config property names.
 
 Illustrative example (Thai form):
 
@@ -107,7 +114,7 @@ Illustrative example (Thai form):
 }
 ```
 
-Answer set (shape of the checkbox answer pending R14):
+Answer set (the checkbox answer uses the option-field shape of R14):
 `{ "k3Jx9aQ2mTzL": 4, "Vb7-pL0wQe4R": { "optionIds": ["Qm2xT8aLp0vW", "other"], "other": "TikTok" } }`
 
 ### Impact on later items (not built here)
@@ -116,6 +123,8 @@ Answer set (shape of the checkbox answer pending R14):
   column and a UTC-instant column (brief §6 has one `valueDate DateTime?`; see Flags). Items 003
   and 005 build it.
 - `file` stores one `text` value (the file ID) per file, not `none` (see Flags).
+- A `fieldId` keeps one `type` and one stored kind across all versions (R19), so the merged
+  columns and summaries of 007 and 008 never mix kinds (e.g. calendar dates and instants).
 
 ## User stories
 
@@ -197,12 +206,12 @@ Answer set (shape of the checkbox answer pending R14):
 - **Who:** the developer of publish (003) and the Builder (004). Admins indirectly: a typo fix
   after publish does not split their data, while a changed meaning gets a new question.
 - **Want:** an ID generator for fields and options, and a check that refuses a version in which an
-  existing `fieldId` changes type.
+  existing `fieldId` changes type or stored kind.
 - **So that:** export and analytics can merge versions by `fieldId` (ADR 0009), and every source of
   schemas (Builder, API, future AI generation) obeys the same rule.
 - **Independent test:** generated IDs are URL-safe, fixed-length and unique over a large sample; a
-  version history with a type change is refused with the conflict listed; label, option and order
-  changes pass.
+  version history with a type change, or with a `date` field's `includeTime` switched under the
+  same `fieldId`, is refused with the conflict listed; label, option and order changes pass.
 
 ## Requirements
 
@@ -251,7 +260,8 @@ code-plus-params form. The package itself produces only these codes:
 - answer set: `unknown_field` {fieldId};
 - Form Schema: `unsupported_schema_version` {found}, `unknown_property` {key},
   `unknown_field_type` {type}, `duplicate_field_id` {fieldId}, `duplicate_option_id` {optionId},
-  `reserved_id` {id}, `field_type_changed` {fieldId, previousType, type, version};
+  `reserved_id` {id}, `field_type_changed` {fieldId, previousType, type, previousStoreAs, storeAs,
+  version};
 - definitions, registry and export: `invalid_field_type` {type}, `duplicate_field_type` {type},
   `incompatible_analytics` {storeAs, summarize}, `invalid_time_zone` {timeZone}.
 
@@ -308,10 +318,13 @@ All nine are defined with R1 and reach a registry only through R3.
 
 **R10. `text` and `textarea`.** Config: optional `minLength` (integer ≥ 0) and `maxLength`
 (integer ≥ 1), with `minLength` ≤ `maxLength` (`invalid_range`). Answer: a string, trimmed of
-leading and trailing whitespace; its length is counted in Unicode code points after trimming
-(`too_short` / `too_long`); `text` refuses line breaks (`invalid`), `textarea` keeps them. `toCell`
-returns the trimmed text. Stored value: the text. Analytics: `text`, `responses`, not groupable. —
-_US4_
+leading and trailing whitespace. Its length is the number of user-perceived characters after
+trimming — extended grapheme clusters as defined by Unicode UAX #29 — so a Thai consonant with the
+vowel and tone marks written above or below it, an emoji with a skin-tone modifier and an emoji ZWJ
+sequence each count 1 (`too_short` / `too_long`). The count is the same in Node and in modern browsers, so the browser
+and the server accept exactly the same answers. `text` refuses line breaks (`invalid`), `textarea`
+keeps them. `toCell` returns the trimmed text. Stored value: the text. Analytics: `text`,
+`responses`, not groupable. — _US4_
 
 **R11. `number`.** Config: optional finite `min` and `max` with `min` ≤ `max` (`invalid_range`),
 and `integer` (default `false`). Answer: a finite JSON number (a numeric string such as `"5"` is
@@ -323,7 +336,8 @@ number. Analytics: `number`, `histogram+stats`, not groupable. — _US4_
 **R12. `rating`.** Config: `max`, an integer from 2 to 10 (default 5); `icon`, `star` or `heart`
 (default `star`); the minimum is always 1. Answer: an integer from 1 to `max` (`not_integer`,
 `too_small`, `too_big`). `toCell` writes the integer. Stored value: the number. Analytics:
-`number`, `distribution+avg`, **not groupable** (brief §5; see Flags). — _US4_
+`number`, `distribution+avg`, **groupable** (owner decision 2026-11-05, departing from the brief §5
+example; see Flag 5). — _US4_
 
 **R13. `choice`, `dropdown`, `checkbox`: config.** Shared config: `options`, an ordered list of at
 least one `{ id, label }` (`too_few` {min: 1}) with unique IDs (`duplicate_option_id`) and
@@ -334,20 +348,21 @@ form's language, required when `allowOther` is true (the package supplies no def
 allowed; otherwise `invalid_range`). `choice` and `dropdown` have the same config and answer rules
 and differ only in how they are rendered (002). — _US5_
 
-**R14. `choice`, `dropdown`, `checkbox`: answers, cells, stored values.** [NEEDS CLARIFICATION:
-What is the stored answer shape for choice, dropdown and checkbox now that "Other" exists?
-Recommended: one shape for all three, `{ "optionIds": string[], "other"?: string }`, where the
-reserved ID `other` marks the "Other" selection and `other` holds its text; choice and dropdown
-allow at most one ID. Alternatives: `{ "optionId", "other"? }` for choice/dropdown with a list
-only for checkbox; or bare option ID(s) with the free text kept outside the answer.] Whatever the
-shape, these rules hold:
+**R14. `choice`, `dropdown`, `checkbox`: answers, cells, stored values.** All three use one answer
+shape: an object with exactly `optionIds`, a list of selected option ID strings, and `other`, a
+string holding the "Other" text, present only when the reserved ID `other` is selected — e.g.
+`{ "optionIds": ["Qm2xT8aLp0vW", "other"], "other": "TikTok" }`. Any other shape (a bare ID
+string, `optionIds` that is not a list of strings, an extra property) is `invalid`.
+`{ "optionIds": [] }` is an empty selection, i.e. unanswered (R9).
 
 - Every selected ID is an option of the field, or the reserved `other` when `allowOther` is true;
   anything else — including `other` while "Other" is off — fails with `unknown_option`. No ID may
   appear twice (`duplicate`).
-- `choice` and `dropdown` allow at most one selection (`too_many` {max: 1}).
-- Choosing "Other" requires non-blank text, which is trimmed (`other_text_required`); "Other" text
-  without the "Other" selection is `invalid`.
+- `choice` and `dropdown` allow at most one ID in `optionIds` (`too_many` {max: 1}).
+- When `other` is selected, `other` is required and must be non-empty after trimming; missing,
+  empty or whitespace-only text fails with `other_text_required`, and the normalised answer holds
+  the trimmed text. When `other` is not selected, the `other` property must be absent: any value,
+  even `""` or `null`, is `invalid`.
 - For `checkbox`, "Other" counts as one selection toward `minSelections` / `maxSelections`
   (`too_few` / `too_many`); these limits apply only when the field is answered.
 - `toCell` writes the option's label; "Other" as `<otherLabel>: <text>`; `checkbox` lists its
@@ -397,18 +412,18 @@ cryptographically secure source available in both Node and browsers, URL-safe, o
 with at least 64 bits of randomness, always accepted by R5's ID rules and never a reserved value.
 IDs are generated once when a field or option is created and never derived from labels. — _US7_
 
-**R19. Same question, same type.** Given a form's earlier versions in order and a candidate
-version, one public call refuses the candidate when any `fieldId` in it appears in an earlier
-version with a different `type` (`field_type_changed`, naming the `fieldId`, the earlier and new
-type and the earlier version). It accepts changes to label, help, required, config and order,
-removed fields, and a removed field coming back with the same type. [NEEDS CLARIFICATION: Must
-the check also refuse a fieldId whose stored kind changes between versions — e.g. a date field
-whose includeTime is switched after publish, turning calendar dates into UTC instants?
-Recommended: yes, treat a change of `storeAs` like a type change (the Builder then issues a new
-fieldId), so no merged column or summary mixes dates and instants. Alternative: allow it and make
-007/008 handle mixed date and date-time values in one column.] The rule lives in this package, so
-publish (003), the Builder (004) and any future API or AI-generated schema all obey it (ADR 0009).
-— _US7_
+**R19. Same question, same type and stored kind.** Given the registry, a form's earlier versions
+in order and a candidate version, one public call refuses the candidate when any `fieldId` in it
+appears in an earlier version with a different `type`, or with the same `type` but a different
+stored kind (the `storeAs` its definition gives for that version's parsed config — e.g. a `date`
+field whose `includeTime` was switched, `date` ↔ `datetime`). Both are refused the same way, with
+`field_type_changed` naming the `fieldId`, the earlier and new type, the earlier and new stored
+kind and the earlier version; the Builder must then issue a new `fieldId`, so no merged column or
+summary mixes kinds. The rule reads `storeAs` from the definitions only, with no special case for
+any built-in. It accepts changes to label, help, required and order, config changes that keep the
+stored kind, removed fields, and a removed field coming back with the same type and stored kind.
+The rule lives in this package, so publish (003), the Builder (004) and any future API or
+AI-generated schema all obey it (ADR 0009). — _US7_
 
 ### Platform
 
@@ -426,8 +441,9 @@ without a comment. — _US1–US7_
 - A form with zero fields is a valid schema; the answer set `{}` validates to an empty normalised
   set. Whether such a form may be published is item 003's call.
 - `{}` for a form with required fields gives one `required` error per required field.
-- `null` is the same as an absent key. Blank or whitespace-only text, an empty selection and an
-  empty file list are unanswered.
+- `null` is the same as an absent key. Blank or whitespace-only text, an empty selection
+  (`{ "optionIds": [] }`) and an empty file list are unanswered. `{ "optionIds": [], "other": "x" }`
+  is not unanswered but `invalid` ("Other" text without the "Other" selection, R14).
 - `""` for `number`, `rating` or `date` is not "unanswered" but `invalid` / `invalid_date`; the
   renderer (002) sends `null` or omits the key for "no answer".
 - Optional checkbox with `minSelections: 2`: no selection is valid, one selection is `too_few`. A
@@ -438,7 +454,8 @@ without a comment. — _US1–US7_
 ### Failure
 
 - A stored version using a type that is no longer registered (a plugin removed from the instance)
-  fails with `unknown_field_type`; fields are never dropped silently.
+  fails with `unknown_field_type`, also when it is read as an earlier version for the R19 check;
+  fields are never dropped silently.
 - A plugin whose config schema becomes stricter can make older stored versions fail. Type strings
   are permanent (ADR 0007), so plugin authors must keep config backward compatible; built-in
   config changes go through `schemaVersion` migration (R7).
@@ -447,6 +464,12 @@ without a comment. — _US1–US7_
   field). Duplicate option **labels** are allowed (IDs identify options); CSV cells then cannot
   tell them apart, so 004 may warn.
 - Same `fieldId` with a different `type` across versions → `field_type_changed` (R19).
+- Same `fieldId` and `type` but a different stored kind across versions → refused the same way.
+  Example: a `date` field published with `includeTime` false, then switched to true under the same
+  `fieldId` (`date` → `datetime`), gives `field_type_changed` {previousStoreAs: `date`, storeAs:
+  `datetime`}; the switch back is refused too. The Builder (004) must give the switched question a
+  new `fieldId`. Config changes that keep the stored kind (an option added or relabelled, a text
+  length limit changed) pass.
 - Unknown answer keys → `unknown_field`; all other fields are still checked and reported.
 - An answer set that is an array, string, number or `null` → `invalid` for the whole set, never a
   thrown exception.
@@ -483,8 +506,13 @@ without a comment. — _US1–US7_
 - Thai title, labels, help, options, `otherLabel` and answers are plain Unicode strings stored as
   given (no normalisation). The admin writes `otherLabel` in the form's language; 004 may prefill
   it from its messages.
-- Length is counted in code points: `ที่` counts 3 (ท, ี, ่) and `👍` counts 1. The renderer's
-  character counter (002) must use the same rule so client and server agree.
+- Length (R10) is counted in user-perceived characters (extended grapheme clusters, UAX #29)
+  after trimming — not in code points or UTF-16 units: `ที่` (ท + ี + ่, 3 code points) counts 1;
+  `สวัสดี` (6 code points) counts 4; a vowel written beside the consonant is a character of its
+  own, so `กา` counts 2; `👍🏽` (thumbs up + skin-tone modifier) counts 1; the family
+  emoji `👨‍👩‍👧‍👦` (four people joined by three ZWJ, 7 code points) counts 1; the flag `🇹🇭` counts 1.
+  Node and modern browsers must give the same count, and the renderer's character counter (002)
+  must use the same rule so client and server agree.
 - `meta.language` accepts any well-formed BCP 47 tag (`th`, `en`, `ja`, `th-TH`). The respondent UI
   locale is derived from it in 005 through `resolveRespondentLocale` (000 R26): a tag with a
   region such as `th-TH` should resolve to `th`; unsupported languages fall back to `en`.
@@ -503,7 +531,8 @@ without a comment. — _US1–US7_
 - `2026-02-29` → `invalid_date`; `2028-02-29` is valid; `T24:00` and `T23:59:60` → `invalid_date`.
 - Daylight saving: an `America/New_York` cell has offset `-05:00` for a January instant and
   `-04:00` for a July instant.
-- "Other" chosen with empty or whitespace-only text → `other_text_required`.
+- "Other" chosen with the `other` text missing, empty or whitespace-only → `other_text_required`;
+  `other` text present (even `""` or `null`) while `other` is not selected → `invalid`.
 - Checkbox with `maxSelections: 2`, two options plus "Other" chosen → `too_many` {max: 2};
   `minSelections: 2` with one option plus "Other" → valid.
 - `choice` with two selected IDs → `too_many` {max: 1}.
@@ -513,6 +542,8 @@ without a comment. — _US1–US7_
 - `rating` config `max` of 1, 11 or 4.5 → config error; answer `0` → `too_small`, `max + 1` →
   `too_big`, `3.5` → `not_integer`.
 - `text` config `maxLength: 0` → `too_small`; `minLength` > `maxLength` → `invalid_range`.
+- `textarea` with `maxLength: 1`: `ที่` and `👨‍👩‍👧‍👦` are valid. An inner line break counts 1
+  whether sent as `\n` or `\r\n` (one grapheme cluster): `a\nb` and `a\r\nb` both count 3.
 - Checkbox `minSelections` greater than the options (plus one with "Other") → `invalid_range`.
 - `fieldId` of 65 characters or containing `.` or a space → `invalid`; option ID `other` →
   `reserved_id`.
@@ -544,10 +575,13 @@ without a comment. — _US1–US7_
       `acme/signature`. (R3)
 - [ ] **AC6** Unit: each incompatible `summarize` / `storeAs` pair in R2 is refused with
       `incompatible_analytics`; every built-in's `storeAs`, `summarize` and `groupable` equal the
-      schema-section table (for `date`, with `includeTime` false and true). (R2, R10–R17)
+      schema-section table (for `date`, with `includeTime` false and true); `groupable` is true for
+      exactly `choice`, `dropdown`, `checkbox` and `rating`. (R2, R10–R17)
 - [ ] **AC7** Unit: for a valid answer to each built-in, the stored values equal the expected list
-      (checkbox with "Other" → its option IDs plus `other`; file with two IDs → two `text` values;
-      date-time → one `datetime`); a `storeAs: none` fixture gives an empty list. (R2, R14, R17)
+      (checkbox `{ "optionIds": ["Qm2xT8aLp0vW", "other"], "other": "TikTok" }` →
+      `["Qm2xT8aLp0vW", "other"]`, without the text; `choice` with "Other" chosen → `["other"]`;
+      file with two IDs → two `text` values; date-time → one `datetime`); a `storeAs: none`
+      fixture gives an empty list. (R2, R14, R17)
 - [ ] **AC8** Unit: every error produced by the failure cases of AC4–AC27 (definitions, registry,
       schema, answers, cells) has a code, params and a location and no message text, and every
       code produced by the package is in R4's list. (R4)
@@ -571,9 +605,13 @@ without a comment. — _US1–US7_
       unchanged. (R9)
 - [ ] **AC14** Unit: the fixture field declares its own "unanswered" rule through the same public
       means the built-ins use, and whole-response validation honours it. (R3, R9)
-- [ ] **AC15** Unit: `"  hi  "` becomes `"hi"`; `ที่` has length 3 and `👍` length 1 against
-      `minLength` / `maxLength`; `text` with a line break is `invalid` while `textarea` keeps it;
-      `too_short` / `too_long` carry `min` / `max`; `toCell` returns the trimmed text. (R10)
+- [ ] **AC15** Unit: `"  hi  "` becomes `"hi"`. Length counts user-perceived characters after
+      trimming: with `maxLength: 1`, `ที่`, `"  ที่  "`, `👍🏽` and `👨‍👩‍👧‍👦` are each accepted,
+      and with `minLength: 2` each fails with `too_short` {min: 2}; `สวัสดี` passes
+      `maxLength: 4` and fails `maxLength: 3` with `too_long` {max: 3}; `textarea` counts `a\r\nb`
+      as 3. These counts are identical in Node and in a real browser engine (a DOM emulation
+      running in Node does not count, as it shares Node's Unicode data). `text` with a line break
+      is `invalid` while `textarea` keeps it; `toCell` returns the trimmed text. (R10, R20)
 - [ ] **AC16** Unit: `number` accepts `2.5` by default and gives `not_integer` with `integer`;
       bounds are inclusive; `"5"` is `invalid`; `toCell(1234.5)` is `"1234.5"` and
       `toCell(-0.25)` is `"-0.25"`. (R11)
@@ -583,13 +621,19 @@ without a comment. — _US1–US7_
       option ID `other`, `allowOther` without `otherLabel`, checkbox `minSelections` >
       `maxSelections`, or `minSelections` above the selectable count is refused with its code.
       (R13)
-- [ ] **AC19** Unit: option answers match the Limits cases — `choice` with two IDs, `other` while
-      "Other" is off, blank "Other" text, "Other" text without the selection, checkbox "Other"
-      counted toward min/max, optional checkbox with `minSelections: 2`, unknown and repeated IDs.
-      (R14)
-- [ ] **AC20** Unit: `toCell` gives the option label for `choice`; `อื่นๆ: TikTok` for "Other"
-      with `otherLabel` `อื่นๆ`; for `checkbox`, labels in config order with "Other" last joined
-      by `; `; an unknown option ID as the ID itself. (R14)
+- [ ] **AC19** Unit: option answers match the Limits cases — `choice` and `dropdown` with two IDs,
+      `other` while "Other" is off, "Other" selected with the `other` text missing, `""` or `"  "`
+      (`other_text_required`), `other` text present (including `""` and `null`) without the
+      selection (`invalid`), checkbox "Other" counted toward min/max, optional checkbox with
+      `minSelections: 2`, unknown and repeated IDs. A bare ID string, `optionIds` that is not a
+      list of strings and an extra property are `invalid`; `{ "optionIds": [] }` is unanswered;
+      `"  TikTok "` is normalised to `"TikTok"`. (R9, R14)
+- [ ] **AC20** Unit: `toCell` gives the option label for `choice`; `อื่นๆ: TikTok` for
+      `{ "optionIds": ["other"], "other": "TikTok" }` with `otherLabel` `อื่นๆ`; for `checkbox`
+      with the example form's config, `optionIds` `["c9Rk_4NnYb1E", "Qm2xT8aLp0vW"]` gives
+      `Facebook; เพื่อนแนะนำ` (config order, not answer order) and `["other", "c9Rk_4NnYb1E"]`
+      with `other` `TikTok` gives `เพื่อนแนะนำ; อื่นๆ: TikTok` ("Other" last); an unknown option
+      ID as the ID itself. (R14)
 - [ ] **AC21** Unit: date-only `2026-11-04` is accepted unchanged, `2026-02-29` is `invalid_date`,
       a date-time while `includeTime` is false is `invalid_date`; `toCell` returns `2026-11-04`
       with no zone, `Pacific/Kiritimati` and `Pacific/Pago_Pago`. (R15, R16)
@@ -608,12 +652,14 @@ without a comment. — _US1–US7_
       URL-safe characters), contain no duplicate, and the same test passes in a browser-like
       environment. (R18, R20)
 - [ ] **AC26** Unit: a version history where one `fieldId` is `text` in v1 and `number` in v2 is
-      refused with `field_type_changed` naming the field, both types and v1; label, help,
-      required, config and order changes, a removed field, and a removed field re-added with the
-      same type are accepted. (R19)
-- [ ] **AC27** Unit (outcome depends on the R19 marker): a `date` field with `includeTime` false in
-      v1 and true in v2 under the same `fieldId` is refused (recommended answer) or accepted.
-      (R19)
+      refused with `field_type_changed` naming the field, both types, both stored kinds and v1;
+      label, help, required and order changes, config changes that keep the stored kind, a removed
+      field, and a removed field re-added with the same type are accepted. (R19)
+- [ ] **AC27** Unit: a `date` field with `includeTime` false in v1 and true in v2 under the same
+      `fieldId` is refused with `field_type_changed` {previousType: `date`, type: `date`,
+      previousStoreAs: `date`, storeAs: `datetime`, version: v1}; true → false is refused too; the
+      same field with only its label changed passes. A fixture field whose `storeAs` depends on its
+      config is refused the same way when that config flips its kind. (R2, R19)
 - [ ] **AC28** Check: the package's unit tests pass in Node and in a browser-like environment with
       the same results, and `pnpm lint` and `pnpm typecheck` pass with the strict settings. (R20)
 
@@ -638,10 +684,12 @@ without a comment. — _US1–US7_
    `storeAs: "text"`, not `"none"`), and `toCell` writes IDs that item 007 resolves to names and
    paths. File metadata lives with the upload record (006). ADR 0011 needs an update before it is
    accepted.
-5. **`rating` groupable: brief and intent disagree.** Brief §5 and intent open question 5 say
-   `groupable: false`; intent open question 6 says `true`. This spec follows the brief (the source
-   of truth): **not groupable** (R12). If the owner wants rating as a cross-tab "split by"
-   dimension (Phase 2), amend brief §5 and change R12; it does not affect stored data.
+5. **`rating` groupable: owner decision 2026-11-05 departs from brief §5 example; brief amendment
+   needed.** Brief §5's `ratingField` example (and intent open question 5) has `groupable: false`.
+   The owner chose `groupable: true` (as intent open question 6 proposed), so a rating can be the
+   "split by" dimension of a cross-tab (brief §9 layer 2, Phase 2). R12, the schema table and AC6
+   follow the owner. Owner action: amend the brief §5 example. `groupable` is data only: no
+   cross-tab is built in this item, and stored data is unaffected.
 6. **ADR 0003 and `000-foundation` require `LocalizedText`.** ADR 0003 Consequences and the 000
    spec (Flag 1) say `001` must model schema text as `LocalizedText`. Owner decision 1 replaced
    that with one plain-text language per form. ADR 0003 needs an amendment, and multi-language form
@@ -650,19 +698,47 @@ without a comment. — _US1–US7_
    `Answer` rows for any field (including plugins and "Other"), each definition must state how an
    answer becomes stored values (R2) and what counts as unanswered (R9); `storeAs` may depend on
    config (R2); `summarize` is a closed set that adds `none` (not in intent open question 6) so a
-   `storeAs: "none"` plugin has a valid pairing. `/impl-plan` should record these, together with
-   single-language text and `schemaVersion`, in one ADR or an amendment to ADR 0007/0009 (as the
-   intent asks).
+   `storeAs: "none"` plugin has a valid pairing. R19 also extends ADR 0009: a change of stored
+   kind under the same `fieldId` is refused like a type change (owner, 2026-11-05), so ADR 0009's
+   "changing a field's `type` creates a new `fieldId`" must also cover `storeAs`. `/impl-plan`
+   should record these, together with single-language text and `schemaVersion`, in one ADR or an
+   amendment to ADR 0007/0009 (as the intent asks).
 8. **Downstream risks, not conflicts:**
    - Brief §6 indexes `Answer(fieldId, valueText)`. Long `textarea` answers can exceed Postgres's
      B-tree index row size; item 003 must decide (e.g. no index on long text, or a prefix/hash).
    - File IDs, "Other" text and all answers are untrusted respondent input; 005/006 must check file
      ownership and limits, and 007 must neutralise CSV formula injection (Edge cases, Permission).
    - 005 must map a region-tagged `meta.language` (e.g. `th-TH`) to the UI locale `th`.
-9. **Size is at the ADR 0006 limit: 20 of 20 requirements**, with R4 and R14 dense. Nothing was
+   - Grapheme rules change between Unicode versions (e.g. Unicode 15.1 changed some Indic
+     conjuncts), and Node and browsers can ship different Unicode data. The Thai and emoji cases
+     in AC15 are stable, but `/impl-plan` must show how R10's Node/browser parity holds while Zod
+     stays the only runtime dependency (R20), or bring the trade-off back to the owner.
+9. **Size is at the ADR 0006 limit: 20 of 20 requirements**, with R4, R14 and R19 dense (the
+   2026-11-05 answers were written into existing requirements; none was added). Nothing was
    trimmed. If `/tasks` goes over 40 tasks, apply the intent's fallback split (open question 7)
    along story lines: US1–US4 and US7 stay in `001-field-core`; US5 (option fields with "Other")
    and US6 (date, file) move to `001b`.
 10. **No BI creep.** `summarize` and `groupable` are data only; no charts, pivot tables, formulas or
     dashboards. No custom condition language. Intent open question 1 (CSV time zone) stays with
     item 007; this item only accepts an optional time zone in `toCell` (R16).
+
+## Clarifications
+
+### Session 2026-11-05
+
+- Q: What is the stored answer shape for `choice`, `dropdown` and `checkbox` now that "Other"
+  exists (R14 marker)? → A: One shape for all three, `{ optionIds: string[], other?: string }`.
+  The reserved option ID `other` marks the "Other" selection and `other` holds its text: required
+  and non-empty after trimming when `other` is selected, absent otherwise. `choice` and `dropdown`
+  allow at most one ID. (Schema section, R14, Edge cases, AC7, AC19, AC20)
+- Q: Must the cross-version check also refuse a `fieldId` whose stored kind (`storeAs`) changes,
+  e.g. a `date` field's `includeTime` switched after publish (R19 marker)? → A: Yes. A `storeAs`
+  change under the same `fieldId` is refused exactly like a type change; the Builder must issue a
+  new `fieldId`. (Impact on later items, US7, R4, R19, Edge cases, AC26, AC27, Flag 7)
+- Q: Is `rating` groupable? Brief §5 example and intent open question 5 say `false`, intent open
+  question 6 says `true`. → A: Yes, `groupable: true`. This departs from the brief §5 example and
+  needs a brief amendment. (Schema table, R12, AC6, Flag 5)
+- Q: How are `text` / `textarea` `minLength` and `maxLength` counted? → A: In user-perceived
+  characters (extended grapheme clusters, Unicode UAX #29) after trimming: `ที่`, `👍🏽` and a
+  family emoji ZWJ sequence each count 1. Node and modern browsers must give the same count; how
+  is left to `plan.md`. (R10, Edge cases, AC15, Flag 8)
