@@ -11,6 +11,7 @@
       "Bash(pnpm --filter @songnoi/web db:check)",
       "Bash(pnpm --filter @songnoi/web e2e)",
       "Bash(pnpm test:integration)",
+      "Bash(pnpm test:browser)",
       "Bash(pnpm format)",
       "Bash(pnpm format:check)",
       "Bash(git status)",

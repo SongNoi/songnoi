@@ -10,6 +10,8 @@ planning any feature. Never edit it; propose brief changes in your final summary
 - `pnpm lint` — ESLint incl. clean-architecture boundaries
 - `pnpm typecheck` — TypeScript across the monorepo
 - `pnpm test` — unit tests; one file: `pnpm vitest run <path>`
+- `pnpm test:browser` — shared unit tests in real Chromium (set `PLAYWRIGHT_CHROMIUM_PATH` if
+  Playwright's own Chromium is not installed)
 - `pnpm test:integration` — integration tests against Postgres (`docker compose up -d postgres`)
 - `pnpm --filter @songnoi/web e2e` — Playwright smoke tests (after `pnpm build`)
 - `pnpm build` — production build
