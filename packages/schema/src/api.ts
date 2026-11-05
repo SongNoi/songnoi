@@ -13,6 +13,14 @@ export {
   type Summarize,
 } from "./core/define-field"
 export {
+  CURRENT_SCHEMA_VERSION,
+  type FieldEntry,
+  type FormMeta,
+  type FormSchema,
+  parseFormSchema,
+} from "./core/form-schema"
+export { idSchema } from "./core/ids"
+export {
   customIssue,
   FieldDefinitionError,
   type Issue,

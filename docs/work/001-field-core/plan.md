@@ -992,3 +992,44 @@ Design unchanged in substance; these are the details the build settled.
   tests.
 - **Open for review:** `storeAsOf` returns what a config-dependent `pick` returns without checking
   it is one of the declared `kinds` (plugin misbehaviour, Risk 11).
+
+### 2026-11-05 — T012 test decisions and implementation details (T013)
+
+Design unchanged; the T012 tests pinned these details the plan did not specify, and T013
+implements them.
+
+- **T012 test decisions:**
+  1. `core/form-schema.ts` exports `type MigrationStep = (input: Readonly<Record<string, unknown>>)
+=> Record<string, unknown>` and `migrateFormSchema(input, steps?)` (internal, not in `api.ts`):
+     step `i` migrates version `i + 1` → `i + 2`, the loop starts at the input's (already gated)
+     `schemaVersion`, the input is never mutated, and `steps` defaults to the package's real list
+     (empty in this item).
+  2. `unsupported_schema_version` is reported at `["schemaVersion"]`, alone.
+  3. `found` is the number or string given, else `null` (`1.5` → `1.5`; `true`, `{}`, `[1]` →
+     `null`).
+  4. A missing `meta`, `fields`, `language`, `fieldId` or `type` → `required`; a wrong type →
+     `invalid`.
+  5. An unknown `type` skips the config but the entry checks (`fieldId`, `label`, unknown keys)
+     still run.
+  6. The output is a fresh object; absent `description` / `help` keys are omitted (never
+     `undefined`); `config` is always present.
+  7. A `fieldId` of `""` or 65 characters → `invalid` (the pattern), not `too_short` / `too_long`;
+     a reserved `fieldId` → only `reserved_id {id}`; a repeated `fieldId` →
+     `duplicate_field_id` at each repeat.
+  8. An own `__proto__` key from `JSON.parse` → `unknown_property {key: "__proto__"}` at form and
+     field level.
+- **Reserved `fieldId` set** lives in `core/ids.ts` next to `idSchema` (Module layout) and is
+  applied in `core/form-schema.ts` (Rules on values). Only a `fieldId` that passes the pattern and
+  is not reserved counts for `duplicate_field_id`.
+- **Object levels** (meta, field entry) are read by their own keys: unknown keys come from
+  `Object.keys`, and only the shape's own keys are copied into the object Zod parses, so an own
+  `__proto__` is reported, never lost or used as a prototype, and nothing is read through the
+  prototype chain. Form-level keys are checked against the same strict form shape.
+- **`config` absent** (or `undefined` from a JavaScript caller) → `{}` is parsed, so every default
+  is written in; `config: null` is not treated as absent but passed to the type's config schema
+  (built-in and fixture configs refuse it with `invalid`). The plan's `config ?? {}` would have
+  accepted `null` silently.
+- **`found` for a non-finite number** (only possible from a JavaScript caller) is `null`, because
+  the catalogue's `found` cannot carry `NaN` or `Infinity`.
+- **Public types** added in this step: `FormSchema`, `FormMeta`, `FieldEntry` (all `z.output` of
+  the static shapes, no hand-written duplicates).
