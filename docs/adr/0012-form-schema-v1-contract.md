@@ -1,6 +1,6 @@
 # ADR 0012 — Form Schema v1 contract: format version, errors, text, time, IDs
 
-Status: Proposed — becomes Accepted when the owner approves `docs/work/001-field-core/plan.md` ·
+Status: Accepted ·
 Date: 2026-11-05 · Work item: `001-field-core` (read by `002`–`009`)
 
 ## Context
@@ -68,3 +68,4 @@ R20); this ADR records the technical choices behind it.
 ## Change log
 
 - 2026-11-05 — first version (`001-field-core` `/impl-plan`).
+- 2026-11-05 — accepted: owner approved `001-field-core/plan.md`.

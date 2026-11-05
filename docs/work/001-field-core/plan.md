@@ -4,6 +4,9 @@ Inputs: [spec.md](./spec.md) (R1–R20, AC1–AC29, Clarifications 2026-11-05), 
 brief §2, §5, §6, §9, §10. ADRs: 0003, 0004, 0006, 0007, 0009, 0011 (amended in this step) and
 0012 (new, drafted in this step). Requirement and AC numbers refer to spec.md.
 
+Approval: owner approved this plan on 2026-11-05, including Zod as a peer dependency, ADR 0012
+and the `pnpm test:browser` command with the CI reorder.
+
 Scope: `packages/schema` only, plus the repo tooling that runs its tests in Node **and** Chromium.
 Nothing in `apps/web` or `packages/renderer` changes.
 
