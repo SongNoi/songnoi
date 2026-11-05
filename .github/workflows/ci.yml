@@ -81,8 +81,12 @@ jobs:
         run: pnpm lint
       - name: Typecheck
         run: pnpm typecheck
+      - name: Install Playwright browser
+        run: pnpm --filter @songnoi/web exec playwright install --with-deps chromium
       - name: Unit tests
         run: pnpm test
+      - name: Browser parity tests (Chromium)
+        run: pnpm test:browser
 
       - name: Prepare databases
         run: |
@@ -99,8 +103,6 @@ jobs:
         run: pnpm changeset status --since=origin/main
         if: github.event_name == 'pull_request'
 
-      - name: Install Playwright browser
-        run: pnpm --filter @songnoi/web exec playwright install --with-deps chromium
       - name: E2E smoke tests
         run: pnpm --filter @songnoi/web e2e
       - uses: actions/upload-artifact@v7

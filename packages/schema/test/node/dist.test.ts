@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from "node:fs"
 import { fileURLToPath } from "node:url"
 import { describe, expect, it } from "vitest"
 
-const root = new URL("../", import.meta.url)
+const root = new URL("../../", import.meta.url)
 const pkg = JSON.parse(readFileSync(new URL("package.json", root), "utf8")) as {
   type: string
   exports: { ".": { types: string; import: string } }
