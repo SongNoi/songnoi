@@ -8,7 +8,8 @@ import * as api from "../src/index"
 // Shared test: runs in Node and in Chromium.
 
 // Export name -> `typeof` of its value. Phase 3 (US1): the field API without built-ins. Phase 4
-// (US2, T013): `CURRENT_SCHEMA_VERSION`, `parseFormSchema`, `idSchema`.
+// (US2, T013): `CURRENT_SCHEMA_VERSION`, `parseFormSchema`, `idSchema`. Phase 5 (US3, T015):
+// `validateResponse`.
 const PINNED_EXPORTS: Readonly<Record<string, string>> = {
   CURRENT_SCHEMA_VERSION: "number",
   FieldDefinitionError: "function",
@@ -19,6 +20,7 @@ const PINNED_EXPORTS: Readonly<Record<string, string>> = {
   issueSchema: "object",
   parseFormSchema: "function",
   storeAsOf: "function",
+  validateResponse: "function",
 }
 
 const exported: Readonly<Record<string, unknown>> = api
