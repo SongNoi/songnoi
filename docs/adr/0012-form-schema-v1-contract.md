@@ -43,8 +43,10 @@ R20); this ADR records the technical choices behind it.
    process time zone, the default locale or environment variables.
 5. **IDs.** `generateId()` returns 12 base64url characters from `crypto.getRandomValues` (Web
    Crypto in Node and browsers): 72 random bits. One function serves `fieldId`s and option IDs.
-   Reserved IDs (`__proto__`, `constructor`, `prototype`, `other`) have other lengths, so they can
-   never be generated.
+   The ID rule (`^[A-Za-z0-9_-]{1,64}$`) is public as the Zod schema `idSchema`, the only place
+   the pattern is defined: the Form Schema checks `fieldId`s with it and the built-in option
+   fields check option IDs with it through the public API. Reserved IDs (`__proto__`,
+   `constructor`, `prototype`, `other`) have other lengths, so they can never be generated.
 6. **Zod is a peer dependency** of `@songnoi/schema` (`^4.6.0`, Zod 4 only), not a bundled
    dependency, so the app, the package and every plugin share one Zod copy and one set of
    inferred types. This extends ADR 0004's dual-package concern. Zod remains the package's only
@@ -69,3 +71,5 @@ R20); this ADR records the technical choices behind it.
 
 - 2026-11-05 — first version (`001-field-core` `/impl-plan`).
 - 2026-11-05 — accepted: owner approved `001-field-core/plan.md`.
+- 2026-11-05 — `/analyze` revision: the ID rule is public as `idSchema` (decision 5; finding
+  F09).
