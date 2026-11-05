@@ -1112,3 +1112,43 @@ Design unchanged; details the T020 tests pinned and `src/fields/shared/options.t
   through the strict normalised-answer schema (`OptionAnswer` is its `z.output`).
 - **`toCell` for an answer built by a caller** with `other` selected but no text writes
   `<otherLabel>: ` (empty text); normalised answers always carry the text.
+
+### 2026-11-05 — implementation details (T025–T027)
+
+Design unchanged; decisions the T022–T024 tests pinned and details the plan left open, as built in
+`src/core/cell-options.ts`, `src/fields/shared/calendar.ts`, `src/fields/date.ts` and
+`src/fields/file.ts`.
+
+- **`parseCellOptions(input: { timeZone?: string })`** parses the strict branded schema with
+  `reportInput` and maps in the `schema` context: an unknown option → `unknown_property {key}` at
+  `[key]` (not `invalid`), a non-string zone → `invalid` at `["timeZone"]`, a non-object →
+  `invalid` at `[]`. On success `options` equals the input (`{}` stays `{}`, the zone is kept as
+  given, e.g. `utc` is not rewritten to `UTC`).
+- **Time-zone refinement:** `""`, a zone starting with `+`, `-` or U+2212 (`+07:00`, `+0700`,
+  `+07`; both engines accept these) and a zone whose resolved name is offset-style are refused;
+  otherwise `new Intl.DateTimeFormat("en-US", { timeZone })` decides, and only a `RangeError`
+  counts as unknown (any other exception propagates). `Etc/GMT-7` is an IANA name and is accepted.
+- **Date answers:** a non-string → `invalid` (Zod type issue), every refused string →
+  `invalid_date` or `offset_required` at `[]`; nothing is trimmed (`" 2026-11-04 "`, a trailing
+  LF, `""` and `"  "` are `invalid_date`, also on an optional field). A string of the date-time
+  shape without an offset gives `offset_required` before any range check (so
+  `2026-02-30T10:00` is `offset_required`). A local year `0000` is accepted when the offset moves
+  the UTC instant into year 0001 (only the UTC year is range-checked, as the plan says), so a cell
+  near the lower bound validates back.
+- **Date cells:** `toCell` branches on `config.includeTime`; a date-time answer is re-read with the
+  same parser (no `Date.parse`), and a string that does not read back is returned unchanged. The
+  offset comes from a per-zone cached `Intl.DateTimeFormat("en-US", { timeZone, timeZoneName:
+"longOffset" })`; a seconds offset is rounded to the nearest minute, half away from zero. The
+  wall time is `toISOString()` of the shifted instant without its `Z`, so years below 1000 stay
+  four digits (a wall year above 9999, only reachable at the very top of the range, would use
+  `toISOString`'s expanded `+YYYYYY` form). An engine without `longOffset` throws (unreachable on
+  the supported engines).
+- **File config:** `allowedTypes` uses a non-empty `refine` raising `too_few {min: 1}` instead of
+  `.min(1)`, and the answer raises `too_many {max}` in its `superRefine` instead of `.max()`:
+  Zod 4 length checks also measure a string (a bare `"fileA"` answer got a second `too_big`) and a
+  failed one skips later refinements (a repeat next to too many IDs lost its `duplicate`). A
+  malformed MIME entry is `invalid` at `["allowedTypes", j]` (the entry's index). MIME names keep
+  their case.
+- **File answers:** an empty or non-string entry → `invalid` at `[i]`; a repeat → `duplicate
+{value}` at the repeat's index (the first occurrence is not flagged); `too_many` and `duplicate`
+  are both reported when every entry is a non-empty string; IDs are kept as given.

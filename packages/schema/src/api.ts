@@ -2,7 +2,7 @@
 // the only module `src/fields/**` may import (constitution 2): built-ins use exactly what a plugin
 // can use. Everything not exported here is internal.
 
-export type { CellOptions } from "./core/cell-options"
+export { type CellOptions, parseCellOptions } from "./core/cell-options"
 export {
   defineField,
   type FieldAnswer,
