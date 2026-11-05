@@ -1059,3 +1059,27 @@ implements them in `core/response.ts`.
 - **`AnswerSet`** is `z.output` of an internal `answerSetSchema = z.record(z.string(), z.json())`
   (exported from `core/response.ts`, not from `api.ts`); answer outputs are cast to its value
   type, because the definition type cannot state that answer schemas output JSON.
+
+### 2026-11-05 — implementation details (T018, T019)
+
+Design unchanged; details the plan left open, as built in `src/core/text.ts` and
+`src/fields/{shared/text,shared/decimal,text,textarea,number,rating}.ts`.
+
+- **`countGraphemes`** counts by stepping the segment iterator (no array of segments); the
+  `Intl.Segmenter("en", { granularity: "grapheme" })` is created on the first call and reused.
+- **`text` order of rules:** `trim()`, then an inner LF / CR / LS / PS gives one `invalid` and
+  skips the length rules; otherwise `too_short` / `too_long` (both custom issues, counted only when
+  a limit is set). `isUnanswered` is "a string blank after `trim()`", so blank text never reaches
+  the length rules.
+- **Integer answers (`number` with `integer`, `rating`)** use `z.number()` plus an aborting
+  `not_integer` refine (`customIssue`, `abort: true`) before `.min` / `.max`, not `z.int()`:
+  `z.int()` adds safe-integer bounds, so `1e300` would give two `too_big` issues (one with
+  `max: 9007199254740991`) and `number` would refuse integers above 2^53. Effect: a fraction gives
+  only `not_integer`, an out-of-range integer one `too_small` / `too_big`. Config integers
+  (`minLength`, `maxLength`, rating `max`) keep `z.int()` (their own bounds are far below 2^53).
+- **Config range rules** (`minLength` > `maxLength`, `min` > `max`) are a `superRefine` on the
+  strict config object. Zod runs it after continuable issues, so a limit that is out of its own
+  range and also crosses the other (e.g. `{ minLength: 5, maxLength: 0 }`) gives both its own
+  issue and `invalid_range`; a wrong-type limit or nothing to compare gives no `invalid_range`.
+- **`toPlainDecimal`** reads the exponent with `Number.parseInt(…, 10)` (an integer from the
+  string, not float arithmetic on `n`); everything else is the plan's string shift.
