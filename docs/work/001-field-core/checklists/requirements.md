@@ -8,7 +8,9 @@ Evaluated: 2026-11-04, first draft of spec.md. Re-evaluated: 2026-11-05, after `
 back four owner answers; again on 2026-11-05 after a second `/clarify` round wrote back four more;
 and again on 2026-11-05 after a third `/clarify` round resolved the `/analyze` findings — four
 owner decisions (F04, F06, F08, F27) and fourteen syncs with the approved plan.md and ADR 0012
-(Clarifications, Session 2026-11-05: 12 Q/A entries plus one sync entry).
+(Clarifications, Session 2026-11-05: 12 Q/A entries plus one sync entry); and again on 2026-11-05
+after the second `/analyze` pass — a sync with the revised plan.md (N05, N07, N08, N14; F29
+accepted as-is), no owner decision (one further sync entry).
 
 ## Content quality
 
@@ -42,15 +44,19 @@ owner decisions (F04, F06, F08, F27) and fourteen syncs with the approved plan.m
       schema section (answer compatibility, impact on later items), US1, US4, US7, R1, R4, R12,
       R19, Edge cases, AC3, AC8, AC15, AC25–AC29, Flags 1–9; third round (`/analyze`): intro
       (Terms), schema section, R1, R4–R8, R10, R11, R13–R17, Edge cases (Failure, Permission,
-      i18n, Limits), AC8–AC12, AC15, AC16, AC18–AC20, AC22–AC24, AC28, Flags 8–10 — and logged
-      under `## Clarifications` → `### Session 2026-11-05` (12 Q/A entries plus one entry listing
-      the plan syncs).
+      i18n, Limits), AC8–AC12, AC15, AC16, AC18–AC20, AC22–AC24, AC28, Flags 8–10; second
+      `/analyze` sync: intro, R4, R8, R19, R20, Edge cases (Failure, Limits), AC10, AC12, AC26,
+      Flag 9 — and logged under `## Clarifications` → `### Session 2026-11-05` (12 Q/A entries
+      plus two entries listing the plan syncs).
 - [x] Requirements are numbered, testable, and each is tagged with at least one user story.
 - [x] Requirement count within the ADR 0006 limit: **20 / 20**; acceptance criteria **29**. No
       round added a requirement (the second extended R1, R4, R12 and R19; the third extended R1,
-      R4–R8, R10, R11 and R13–R17) and the third added no AC, only extended existing ones; nothing
-      trimmed; the fallback split is mapped to stories and AC rows in Flag 9, matching plan.md
-      Risk 6.
+      R4–R8, R10, R11 and R13–R17) and the third added no AC, only extended existing ones; the
+      second `/analyze` sync extended R4, R8, R19, R20 and AC10, AC12, AC26 and added neither;
+      nothing trimmed; the fallback split is mapped to stories, plan steps and AC rows in Flag 9,
+      with the same row list as plan.md Risk 6 (AC6, AC7, AC9, AC12 hostile-corpus and AC13 rows
+      of the option, date and file families; AC10 option-ID rows; AC27 `date` case; AC29
+      option-field and `file` rows).
 - [x] Every user story has a priority, who / want / so that, and an "Independent test" line.
 - [x] Every story is independently demonstrable: US1–US3 with the fixture field only, US4–US6 per
       field family, US7 with schemas, the fixture field's own compatibility rule and the `date` and
@@ -67,7 +73,10 @@ owner decisions (F04, F06, F08, F27) and fourteen syncs with the approved plan.m
       keys in built-in configs and option entries, frozen plugin config shapes, `"other": null`,
       checkbox `maxSelections: 0`, `allowedTypes: []` and `*/*`, date-time fractions and the UTC
       year range, sub-minute historical offsets, invalid export time zones, numbers in plain
-      decimal, which characters are line breaks, rare BCP 47 forms and engine CLDR differences).
+      decimal, which characters are line breaks, rare BCP 47 forms and engine CLDR differences)
+      and the second `/analyze` sync cases (a registry lacking a schema's type in whole-response
+      validation and in the version check, earlier versions out of order, invalid or repeated
+      version numbers, engines without `Intl.Segmenter`, rating config codes with params).
 - [x] Scope is bounded: nothing from items 002–009 or Phase 2 is required; display rules, CSV time
       zone, upload/storage, `Answer` columns, cross-tab and Builder behaviour are deferred by name.
 - [x] Owner decisions 1–6 in intent.md and the twelve 2026-11-05 answers are carried as
@@ -89,7 +98,9 @@ owner decisions (F04, F06, F08, F27) and fourteen syncs with the approved plan.m
 - [x] Every acceptance criterion cites the requirement(s) it proves.
 - [x] Every requirement is proven by at least one acceptance criterion (trace below). R10 and R20
       claim "modern" / "current" browsers but are proven in Chromium only; other engines are a
-      named residual risk (Flag 8).
+      named residual risk (Flag 8; `/analyze` F29 accepted as-is). R20's `Intl.Segmenter`
+      baseline is a stated scope limit, not a behaviour this item can prove: both test engines
+      have it, so the "throws without it" exception has no AC, matching plan.md Risk 10.
 - [x] ADR 0006 exit check is included (AC1: built-in and fixture field through the same public
       calls; AC2: build with no React dependency).
 - [x] Acceptance criteria are final — AC7, AC19 and AC20 use the decided answer shape; AC26
@@ -100,7 +111,12 @@ owner decisions (F04, F06, F08, F27) and fourteen syncs with the approved plan.m
       a missing `otherLabel`, `unknown_property` for config and option-entry keys, `too_small`
       for `maxSelections: 0`, `too_few` for `allowedTypes: []`, `invalid` for `*/*`, non-object
       schemas and out-of-catalogue plugin codes); AC28 now names the shared tests and forbids
-      environment-dependent skips.
+      environment-dependent skips. Second `/analyze` sync: AC26 states the history-input rows
+      (order-independent "latest", `invalid` / `duplicate` version numbers returned alone,
+      registry miss → `unknown_field_type` at the candidate's `["fields", i, "type"]`); AC12
+      states the registry-miss row and the per-family hostile-JSON rows; AC10 and the Limits
+      give rating config codes with params (`too_small` {min: 2}, `too_big` {max: 10},
+      `not_integer`), matching plan.md's Zod mapping table.
 - [x] Flags list every conflict found with the brief, the constitution and ADRs 0003, 0007, 0009,
       0011 (incl. the brief §5 rating example, Flag 5, and the ADR 0007/0009 extensions — stored
       kind, answer-compatibility rule, three version codes — Flag 7); Flag 8 also records the
@@ -125,8 +141,10 @@ owner decisions (F04, F06, F08, F27) and fourteen syncs with the approved plan.m
       public call a fixture uses, and a third-party `rating` without a rule is not refused (R12,
       AC27, AC29). Strict configs are a recommendation open to plugins through the same means, not
       a built-in privilege (R6); plugins and built-ins raise codes from the same closed catalogue
-      (R4, AC8). The never-throw promise covers only package and built-in code (R8); that is a
-      statement about whose bugs surface, not a privilege.
+      (R4, AC8). The never-throw promise covers only package and built-in code (R8), on engines
+      that meet R20's `Intl.Segmenter` baseline; that is a statement about whose bugs surface,
+      not a privilege. A registry miss is reported the same way for any type, built-in or plugin
+      (R8, R19).
 - [x] 3 Self-host first — no network requests, no environment reads (R20).
 - [x] 4 Two separate worlds — no auth surface here; public-safe schema and untrusted-input rules
       in Edge cases. Unknown keys are refused down to built-in configs and option entries (R6); a

@@ -12,8 +12,9 @@ six further questions (rating `groupable`, text length counting, the stored-kind
 scale changes across versions, how Node/browser parity is proven, and the status of the brief and
 ADR gaps) were answered by the owner on 2026-11-05 in two rounds. A third round on 2026-11-05,
 after `/analyze`, settled four more points (number cells, strict configs, plugin exceptions,
-checkbox `maxSelections`) and aligned the spec with the approved `plan.md` and ADR 0012. All
-answers are written into the sections below (log: Clarifications).
+checkbox `maxSelections`) and aligned the spec with the approved `plan.md` and ADR 0012; a
+second `/analyze` pass the same day led to one more sync with the revised `plan.md`, with no owner
+decision. All answers are written into the sections below (log: Clarifications).
 
 **Terms** (spec term = API name in plan.md, for tracing only): "export options" = `CellOptions`,
 validated by `parseCellOptions`; "answer-compatibility rule" = `incompatibleChanges`; "unanswered"
@@ -276,8 +277,9 @@ optionally prefixed by one scope and `/` (e.g. `acme/signature`); anything else 
 
 **R4. Machine-readable errors only.** Every failure — field definitions, registry, Form Schema,
 answers, export options — is reported as a code, named params and a location (a path inside the
-schema; a `fieldId` plus optional path inside the answer; or the answer set as a whole), never as
-display text. The package contains no user-facing strings (constitution 13); item 002 maps codes
+schema, or for the version check's input a path inside its list of earlier versions (R19); a
+`fieldId` plus optional path inside the answer; or the answer set as a whole), never as display
+text. The package contains no user-facing strings (constitution 13); item 002 maps codes
 to `messages/{en,th}.json`. Errors from a third-party field's own rules come out in the same
 code-plus-params form. The list is **closed in MVP**: a third-party field's rules can raise only
 these codes, and any other code, or a rule failure with no matching code, comes out as `invalid`
@@ -348,10 +350,15 @@ candidate answer set (any JSON value), one public call returns either success wi
 answer set, or failure with every error found, grouped by `fieldId` plus one group for the answer
 set as a whole. It checks all fields (never stops at the first error), gives the same result in
 Node and in a browser, and needs nothing outside this package (ADR 0007), so the server can
-re-validate without trusting client checks. The package and the built-in fields never throw for
-any JSON input. An exception thrown by a third-party field's own code (e.g. its answer or
-"unanswered" rule) propagates to the caller unchanged: a broken plugin must be loud, not disguised
-as an invalid answer. — _US3_
+re-validate without trusting client checks. The registry must hold the definitions the schema was
+read with: a field whose `type` is missing from the registry passed to this call gets
+`unknown_field_type` {type} in its own group at path `[]`, whether it is answered or not; its value
+is not checked, the result is a failure, and nothing is thrown, so a registry that does not match
+the schema can never accept a response. On any engine that meets R20's baseline, the package and
+the built-in fields never throw for any JSON input (the one stated exception is in R20). An
+exception thrown by a third-party field's own code (e.g. its answer or "unanswered" rule)
+propagates to the caller unchanged: a broken plugin must be loud, not disguised as an invalid
+answer. — _US3_
 
 **R9. Answered, unanswered and unknown.** A field is unanswered when its key is absent or `null`;
 built-in fields are also unanswered when text is blank after trimming, a selection is empty or a
@@ -478,9 +485,18 @@ cryptographically secure source available in both Node and browsers, URL-safe, o
 with at least 64 bits of randomness, always accepted by R5's ID rules and never a reserved value.
 IDs are generated once when a field or option is created and never derived from labels. — _US7_
 
-**R19. Same question, comparable answers.** Given the registry, a form's earlier versions in order
-and a candidate version, one public call refuses the candidate when a `fieldId` in it also appears
-in an earlier version and the answers of the two cannot be merged:
+**R19. Same question, comparable answers.** Given the registry, a form's earlier versions (each a
+parsed schema with its stored `version` number, passed in any order) and a candidate version, one
+public call refuses the candidate when a `fieldId` in it also appears in an earlier version and the
+answers of the two cannot be merged.
+
+The version numbers are checked first. A `version` that is not a positive safe integer (e.g. `0`,
+`-1`, `1.5`) fails with `invalid`, and a `version` already seen in the list fails with `duplicate`
+{value} at the repeat; both are located at `["earlier", k, "version"]`, `k` being the position in
+the list as passed. If any such error exists, only those errors are returned and no field is
+compared. No earlier version (a form never published) means nothing to compare: the candidate is
+accepted. "Most recent" below means the highest `version` number, whatever the list order. The
+field checks are:
 
 - a different `type` → `field_type_changed`;
 - the same `type` but a different stored kind (the `storeAs` its definition gives for that
@@ -492,13 +508,17 @@ in an earlier version and the answers of the two cannot be merged:
   `field_config_incompatible` with those properties. A definition without a rule accepts every
   config change that keeps the stored kind.
 
-Each conflicting `fieldId` gives one error: the first failing check in the order above, against the
-most recent earlier version it conflicts with. The Builder must then issue a new `fieldId`, so no
-merged column or summary mixes kinds or scales. The call reads `type`, `storeAs` and the rules from
-the registry's definitions only, with no special case for any built-in; among the built-ins only
-`rating` declares a rule (R12). It accepts changes to label, help, required and order, compatible
-config changes, removed fields, and a removed field coming back with the same type and stored kind
-and a compatible config. The check lives in this package, so publish (003), the Builder (004) and
+Each conflicting `fieldId` gives one error, located at that field in the candidate
+(`["fields", i]`), naming the earlier `version`: the first failing check in the order above,
+against the most recent earlier version it conflicts with. The Builder must then issue a new
+`fieldId`, so no merged column or summary mixes kinds or scales. The call reads `type`, `storeAs`
+and the rules from the registry's definitions only, with no special case for any built-in; among
+the built-ins only `rating` declares a rule (R12). Comparing `type` strings needs no definition;
+when the stored-kind or config check needs the definition of a `type` that the registry does not
+hold (schemas read with another registry), that field gets `unknown_field_type` {type} at the
+candidate's `["fields", i, "type"]` and is skipped, and nothing is thrown. The call accepts
+changes to label, help, required and order, compatible config changes, removed fields, and a
+removed field coming back with the same type and stored kind and a compatible config. The check lives in this package, so publish (003), the Builder (004) and
 any future API or AI-generated schema all obey it (ADR 0009). — _US7_
 
 ### Platform
@@ -508,7 +528,14 @@ and in current browsers: it imports no Node built-in module, makes no network re
 no environment variable, process time zone or locale. It is ESM-only with type declarations, has
 no React (or other UI library) in its dependencies or peer dependencies, and has Zod (brief §3) as
 its only runtime dependency. TypeScript is strict with `noUncheckedIndexedAccess`; no `any`
-without a comment. — _US1–US7_
+without a comment.
+
+Baseline: the package requires `Intl.Segmenter` (for R10's length counting); the supported Node
+LTS and current browsers all have it. On an engine without it, importing the package still works,
+but counting a text length — which happens only when a `text` or `textarea` field sets a length
+limit — throws. This is the one stated exception to "the package and the built-ins never throw"
+(R8); there is no silent fallback counter, because it would make browser and server disagree
+(R10). — _US1–US7_
 
 ## Edge cases
 
@@ -531,7 +558,17 @@ without a comment. — _US1–US7_
 
 - A stored version using a type that is no longer registered (a plugin removed from the instance)
   fails with `unknown_field_type`, also when it is read as an earlier version for the R19 check;
-  fields are never dropped silently.
+  fields are never dropped silently. A parsed schema handed to whole-response validation or the
+  version check with a registry that lacks one of its types gives `unknown_field_type` for that
+  field (R8: in its group, answered or not, result not ok; R19: at the candidate's
+  `["fields", i, "type"]`), never a thrown exception.
+- Earlier versions passed to the version check out of order are compared by `version` number, so
+  the result does not depend on the order. A `version` of `0`, `-1` or `1.5` → `invalid`, the same
+  `version` twice → `duplicate` {value}, each at `["earlier", k, "version"]` and returned alone,
+  without comparing any field (R19).
+- An engine without `Intl.Segmenter` is below the package's baseline (R20): import works, but a
+  `text` or `textarea` answer to a field with a length limit throws instead of being counted. All
+  supported Node and browser targets have it.
 - A plugin whose config schema changes after release can make older stored versions fail (e.g. a
   strict config refuses a key it no longer knows with `unknown_property`). Type strings are
   permanent (ADR 0007) and a released config shape is frozen (R6), so plugin authors must not
@@ -655,8 +692,9 @@ without a comment. — _US1–US7_
   (`{ "id": "…", "label": "…", "value": 1 }`) → `unknown_property` at that path.
 - `text` with an inner LF, CR, U+2028 or U+2029 → `invalid`; NEL (U+0085), VT and FF are not line
   breaks.
-- `rating` config `max` of 1, 11 or 4.5 → config error; answer `0` → `too_small`, `max + 1` →
-  `too_big`, `3.5` → `not_integer`.
+- `rating` config `max` 1 → `too_small` {min: 2}, 11 → `too_big` {max: 10}, 4.5 →
+  `not_integer`; answer `0` → `too_small` {min: 1}, `max + 1` → `too_big` {max: `max`}, `3.5` →
+  `not_integer`.
 - `text` config `maxLength: 0` → `too_small`; `minLength` > `maxLength` → `invalid_range`.
 - `textarea` with `maxLength: 1`: `ที่` and `👨‍👩‍👧‍👦` are valid. An inner line break counts 1
   whether sent as `\n` or `\r\n` (one grapheme cluster): `a\nb` and `a\r\nb` both count 3.
@@ -709,7 +747,7 @@ without a comment. — _US1–US7_
 - [ ] **AC10** Unit: each invalid schema fails with its code and path — repeated `fieldId`; repeated
       option ID in one field (the same ID in two fields passes); option ID `other` and `fieldId`
       `__proto__` (`reserved_id`); `fieldId` with a space or 65 characters; unknown type; config
-      errors (rating `max` 11, text `minLength` > `maxLength`); unknown property at form, meta and
+      errors (rating `max` 11 → `too_big` {max: 10}, text `minLength` > `maxLength`); unknown property at form, meta and
       field level and inside a built-in config (rating `{ "max": 5, "color": "red" }`), each
       `unknown_property` at its path; blank title or label (`required`); language `en_US`,
       `x-private` or empty (`invalid`). (R5, R6)
@@ -721,7 +759,15 @@ without a comment. — _US1–US7_
       with three bad fields returns three `fieldId` groups; inputs `null`, `[]`, `"x"`, `1` and
       deeply nested garbage return a whole-set `invalid` without throwing; a fixture field whose
       own answer rule throws makes the call throw that same exception instead of reporting
-      `invalid`. (R8, R9)
+      `invalid`; a parsed schema validated with a registry that lacks one of its types gives
+      `unknown_field_type` {type} at path `[]` in that field's group, both when the field is
+      answered and when it is not, a failed result and no exception. Per built-in family (text,
+      number, rating, option, date, file), every value of one shared corpus of hostile JSON values
+      (wrong types, empty and blank strings, `-0`, `1e308`, mixed arrays, wrong option-answer
+      shapes, own `__proto__` / `constructor` keys, a 10,000-deep nested array) is validated as
+      the family's answer without throwing and with every issue in R4's list; across all nine
+      built-ins the corpus is also used as `config` through the read entry point, again without
+      throwing. (R8, R9)
 - [ ] **AC13** Unit: absent, `null`, blank text, empty selection and empty file list give
       `required` when required and are omitted when optional; keys not in the schema (including
       `__proto__` and `constructor`) give `unknown_field` and leave the other fields' results
@@ -792,7 +838,15 @@ without a comment. — _US1–US7_
       v1} and no `field_kind_changed`, although the stored kind changes too; label, help, required
       and order changes, config changes that keep the stored kind and are not declared
       incompatible, a removed field, and a removed field re-added with the same type, stored kind
-      and a compatible config are accepted. (R19)
+      and a compatible config are accepted; no earlier version is accepted. History input: with a
+      `fieldId` that is `text` in v1 and v2 and `number` in the candidate, earlier versions passed
+      as [v1, v2] and as [v2, v1] both give `field_type_changed` with `version` 2 (the highest
+      number, not the last in the list); a `version` of `0`, `-1` or `1.5` gives `invalid` and a
+      repeated `version` gives `duplicate` {value}, each at `["earlier", k, "version"]`, and with
+      such an error the result holds only the version errors, even when the history also has a
+      field conflict; a field whose `type` is shared by an earlier version but missing from the
+      registry gives `unknown_field_type` {type} at the candidate's `["fields", i, "type"]`, the
+      field is skipped and nothing is thrown. (R19)
 - [ ] **AC27** Unit: a `date` field with `includeTime` false in v1 and true in v2 under the same
       `fieldId` is refused with `field_kind_changed` {fieldId, type: `date`, previousStoreAs:
       `date`, storeAs: `datetime`, version: v1}; true → false is refused too; the same field with
@@ -895,13 +949,16 @@ none of them blocks `/impl-plan`. Each flag keeps its remaining action.
 9. **Size is at the ADR 0006 limit: 20 of 20 requirements**, with R4, R14 and R19 dense. All three
    rounds of 2026-11-05 answers were written into existing requirements (the second round extended
    R1, R4, R12 and R19 and added AC29; the third, after `/analyze`, extended R1, R4–R8, R10, R11
-   and R13–R17 and existing ACs); no requirement or AC was added and nothing was trimmed. If
-   `/tasks` goes over 40 tasks, apply the intent's fallback split (open question 7) along story
-   lines, as plan.md Risk 6 does: US5 (option fields with "Other") and US6 (date, file) move to
-   `001b` with AC18–AC24 and every row of another AC that needs an option, date or file built-in —
-   those rows of AC6, AC7, AC9 and AC13, AC27's `date` case and AC29's option-field and `file`
-   rows. US1–US4 and US7 stay in `001-field-core`, with AC27's fixture case and AC29's other rows,
-   and US7 is built right after US4.
+   and R13–R17 and existing ACs; the sync after the second `/analyze` extended R4, R8, R19 and R20
+   and AC10, AC12 and AC26); no requirement was added, no AC besides AC29, and nothing was
+   trimmed. If `/tasks`
+   goes over 40 tasks, apply the intent's fallback split (open question 7) along story lines,
+   exactly as plan.md Risk 6 does: US5 (option fields with "Other") and US6 (date, file) — plan
+   steps 7–8 — move to `001b` with AC18–AC24 and every AC row that needs an option, date or file
+   built-in: the AC6, AC7, AC9, AC12 (hostile-corpus) and AC13 rows of those families, AC10's
+   option-ID rows, AC27's `date` case and AC29's option-field and `file` rows. US1–US4 and US7
+   stay in `001-field-core`, with AC27's fixture case and AC29's other rows, and US7 (plan step 9)
+   is built right after US4 (plan step 6).
 10. **No BI creep.** `summarize` and `groupable` are data only; no charts, pivot tables, formulas or
     dashboards. No custom condition language. Intent open question 1 (CSV time zone) stays with
     item 007; this item only accepts an optional time zone in the export options that `toCell`
@@ -967,3 +1024,6 @@ none of them blocks `/impl-plan`. Each flag keeps its remaining action.
 - Spec synced with the approved plan.md and ADR 0012 after `/analyze` (no owner decision): F03,
   F05, F07, F11, F12, F13, F14, F15, F17, F18, F19, F20, F25, F26. (Terms, R1, R4, R5, R7, R10,
   R13–R17, Edge cases, AC8–AC11, AC15, AC18–AC20, AC22–AC24, AC28, Flags 8, 9)
+- Spec synced after second /analyze: N05, N08, N14; F29 accepted as-is (Flag 8 already records
+  Chromium-only proof). (Intro, R4, R8, R19, R20, Edge cases (Failure, Limits incl. N07's rating
+  config codes), AC10, AC12, AC26, Flag 9)
