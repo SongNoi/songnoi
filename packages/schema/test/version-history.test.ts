@@ -996,3 +996,155 @@ describe("R8 (T040): checkVersionHistory throws a TypeError for a plugin rule th
     },
   )
 })
+
+// --- T041 (M2, R19, AC29): which names a plugin rule may return -----------------------------------
+//
+// Pins the T040 rule (plan Revisions "convergence 1 — T040"): a name returned by
+// `incompatibleChanges` counts when it is an own key of the earlier or the candidate parsed config,
+// or an own key of the config schema's `shape` (a Zod object, refined or not). A config schema
+// without `shape` (Zod 4 `.transform` / `.pipe` give a `ZodPipe`, which has none) only accepts own
+// keys of the two parsed configs. Inherited names never count.
+
+describe("R19 AC29 (T041): names incompatibleChanges may return", () => {
+  const LIMITED = {
+    max: z.int().min(2).max(10).default(5),
+    limit: z.int().min(1).optional(),
+  }
+  const objectConfig = z.strictObject(LIMITED)
+  const refinedConfig = objectConfig.superRefine(() => undefined)
+  const transformedConfig = objectConfig.transform((config) => config)
+  // The pipe's second stage reads the first stage's output, where `max` is always set.
+  const pipedConfig = objectConfig.pipe(
+    z.strictObject({ max: z.int().min(2).max(10), limit: z.int().min(1).optional() }),
+  )
+
+  /**
+   * A test-local plugin with `config` whose rule returns `returned` whatever the configs. The
+   * result takes the earlier and the candidate config and gives a thunk running the check.
+   */
+  function limitedRule(
+    config: z.ZodType<{ max: number; limit?: number | undefined }>,
+    returned: readonly string[],
+  ) {
+    const limited = defineField({
+      type: "acme/limited",
+      config,
+      answer: (parsed) => z.int().min(1).max(parsed.max),
+      toCell: (answer) => String(answer),
+      storedValues: (answer) => [answer],
+      // JavaScript-style rule on purpose: TypeScript only accepts the config's own string keys
+      // here, so names outside them (`toString`, `__proto__`) are cast to that type.
+      incompatibleChanges: () => returned as readonly ("max" | "limit")[],
+      analytics: { storeAs: "number", summarize: "distribution+avg", groupable: true },
+    })
+    const withLimited = createFieldRegistry([limited])
+    return (previousConfig: Json, candidateConfig: Json) => () =>
+      checkVersionHistory(
+        [v(1, [field(A, "acme/limited", previousConfig)], withLimited)],
+        schema([field(A, "acme/limited", candidateConfig)], withLimited),
+        withLimited,
+      )
+  }
+
+  const refusedLimit: Issue[] = [
+    {
+      code: "field_config_incompatible",
+      params: { fieldId: A, type: "acme/limited", properties: ["limit"], version: 1 },
+      path: ["fields", 0],
+    },
+  ]
+
+  it("the test configs are as assumed: object schemas have `shape`, transform/pipe have none", () => {
+    for (const config of [objectConfig, refinedConfig]) {
+      const shape: unknown = Reflect.get(config, "shape")
+      expect(shape).toBeTypeOf("object")
+      expect(Object.keys(shape as object)).toStrictEqual(["max", "limit"])
+    }
+    for (const config of [transformedConfig, pipedConfig]) {
+      expect(Reflect.get(config, "shape")).toBeUndefined()
+    }
+    // `limit` is optional without a default, so a config without it parses without it.
+    expect(objectConfig.parse({ max: 7 })).toStrictEqual({ max: 7 })
+  })
+
+  it.each([
+    { name: "a strict object config", config: objectConfig },
+    { name: "a refined (superRefine) object config", config: refinedConfig },
+  ])(
+    "R19 AC29 a shape key neither parsed config holds counts: $name, limit unset in both",
+    ({ config }) => {
+      const run = limitedRule(config, ["limit"])({ max: 5 }, { max: 10 })
+      expect(run).not.toThrow()
+      expectRefused(run(), refusedLimit)
+    },
+  )
+
+  it.each([
+    { name: "a strict object config", config: objectConfig },
+    { name: "a refined (superRefine) object config", config: refinedConfig },
+  ])("R19 AC29 a shape key is accepted next to a held key: $name", ({ config }) => {
+    expectRefused(limitedRule(config, ["max", "limit"])({ max: 5 }, { max: 10 })(), [
+      {
+        code: "field_config_incompatible",
+        params: { fieldId: A, type: "acme/limited", properties: ["max", "limit"], version: 1 },
+        path: ["fields", 0],
+      },
+    ])
+  })
+
+  const NO_SHAPE = [
+    { name: "a transform config", config: transformedConfig },
+    { name: "a pipe config", config: pipedConfig },
+  ]
+
+  it.each(NO_SHAPE)(
+    "R19 AC29 without a shape, a name the earlier parsed config holds counts: $name",
+    ({ config }) => {
+      expectRefused(
+        limitedRule(config, ["limit"])({ max: 5, limit: 3 }, { max: 5 })(),
+        refusedLimit,
+      )
+    },
+  )
+
+  it.each(NO_SHAPE)(
+    "R19 AC29 without a shape, a name the candidate parsed config holds counts: $name",
+    ({ config }) => {
+      expectRefused(
+        limitedRule(config, ["limit"])({ max: 5 }, { max: 5, limit: 3 })(),
+        refusedLimit,
+      )
+    },
+  )
+
+  it.each(NO_SHAPE)(
+    "R8 without a shape, a name neither parsed config holds throws a TypeError: $name",
+    ({ config }) => {
+      expect(limitedRule(config, ["limit"])({ max: 5 }, { max: 10 })).toThrow(TypeError)
+    },
+  )
+
+  it.each([
+    ...[objectConfig, refinedConfig, transformedConfig, pipedConfig].flatMap((config, index) =>
+      ["toString", "__proto__", "hasOwnProperty", "constructor"].map((returned) => ({
+        name: `${returned} on ${["object", "refined", "transform", "pipe"][index]} config`,
+        config,
+        returned,
+      })),
+    ),
+  ])("R8 an inherited name never counts and throws a TypeError: $name", ({ config, returned }) => {
+    // `limit` held by both configs, so only the inherited name can make the result fail.
+    const run = limitedRule(config, [returned])({ max: 5, limit: 3 }, { max: 10, limit: 3 })
+    expect(run).toThrow(TypeError)
+  })
+
+  it.each([
+    { name: "a strict object config", config: objectConfig },
+    { name: "a refined (superRefine) object config", config: refinedConfig },
+  ])(
+    "R8 with a shape, a name in neither config nor shape still throws a TypeError: $name",
+    ({ config }) => {
+      expect(limitedRule(config, ["colour"])({ max: 5 }, { max: 10 })).toThrow(TypeError)
+    },
+  )
+})
