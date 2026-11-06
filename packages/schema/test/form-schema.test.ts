@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest"
+import * as z from "zod"
 import {
   CURRENT_SCHEMA_VERSION,
   createFieldRegistry,
   type FormSchema,
   idSchema,
+  defineField,
   type Issue,
   parseFormSchema,
 } from "../src/api"
@@ -454,6 +456,58 @@ describe("R6: config is parsed with the type's config schema, issues under [fiel
     expectRefused(form({ fields: [field({ config: [] })] }), [
       { code: "invalid", params: {}, path: ["fields", 0, "config"] },
     ])
+  })
+})
+
+// --- T046 (review nit 2, R8): a config schema whose output is not a plain object is a plugin fault -
+
+describe("R8 (T046): parseFormSchema throws a TypeError for a config schema whose output is not a plain object", () => {
+  /**
+   * A test-local plugin (public `defineField`) whose config schema accepts the usual strict object
+   * and then transforms it to `output`. Registered next to the fixtures.
+   */
+  function registryWithConfigOutput(output: unknown) {
+    const odd = defineField({
+      type: "acme/odd",
+      config: z
+        .strictObject({ max: z.int().min(1).default(5) })
+        // JavaScript-style misbehaviour on purpose: `defineField` only accepts a config schema
+        // whose output is an object, so the transform's result is cast to that type.
+        .transform(() => output as { max: number }),
+      answer: () => z.string(),
+      toCell: (answer) => answer,
+      storedValues: (answer) => [answer],
+      analytics: { storeAs: "text", summarize: "count", groupable: false },
+    })
+    return createFieldRegistry([acmeSignature, odd])
+  }
+
+  const oddField = (config?: Json): Json => ({
+    fieldId: "odd_01",
+    type: "acme/odd",
+    label: "ช่องทดสอบ",
+    ...(config === undefined ? {} : { config }),
+  })
+
+  it("a config schema that outputs a plain object still parses (control)", () => {
+    const using = registryWithConfigOutput({ max: 7 })
+    const result = parseFormSchema(form({ fields: [field(), oddField({ max: 3 })] }), using)
+    if (!result.ok)
+      return expect.fail(`expected a valid schema, got ${JSON.stringify(result.issues)}`)
+    expect(result.schema.fields[1]?.config).toStrictEqual({ max: 7 })
+  })
+
+  it.each([
+    { name: "null", output: null },
+    { name: "an array ([])", output: [] },
+    { name: 'a string ("x")', output: "x" },
+  ])("R8 throws a TypeError when the config schema outputs $name", ({ output }) => {
+    const using = registryWithConfigOutput(output)
+    expect(() => parseFormSchema(form({ fields: [field(), oddField({ max: 3 })] }), using)).toThrow(
+      TypeError,
+    )
+    // A field without `config` gets the defaults through the same schema, so it throws too.
+    expect(() => parseFormSchema(form({ fields: [oddField()] }), using)).toThrow(TypeError)
   })
 })
 

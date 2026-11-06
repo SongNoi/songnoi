@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 import {
   type CellOptions,
   createFieldRegistry,
@@ -312,6 +312,101 @@ describe("AC23 date: an offset with seconds (local mean time) is rounded to the 
       const back = validateResponse(schema, { [FIELD_ID]: cell }, registry)
       expect(back, name).toStrictEqual({ ok: true, answers: { [FIELD_ID]: value } })
     }
+  })
+})
+
+// --- T045 (review Important #1): case variants of one zone share one formatter ---------------------
+//
+// Bug reproduction (CLAUDE.md "Bugs"): the per-zone formatter cache must not grow with each case
+// variant `parseCellOptions` accepts (it keeps the zone as given), or a caller passing many
+// variants keeps one native `Intl.DateTimeFormat` per variant for the life of the process.
+//
+// Mechanism: `vi.spyOn(Intl, "DateTimeFormat")` wraps the global constructor (the module reads
+// `Intl.DateTimeFormat` at call time, so the spy sees its `new` calls) and records the arguments of
+// every construction; the test copies them before restoring the spy and counts those whose
+// `timeZone` is a case variant of the zone. All `CellOptions` are parsed before the spy is
+// installed (`parseCellOptions` builds its own throwaway formatter to validate a zone), so only
+// constructions made while writing cells are counted. The counting test uses `Australia/Eucla`, a
+// zone used nowhere else (each test file has its own module instance, and the cell guard below
+// uses `Pacific/Chatham`), so the cache holds nothing for it beforehand: its first cell must build
+// exactly one formatter, and every later variant none.
+
+/** `count` distinct case variants of the ASCII zone name `zone`, the canonical spelling first. */
+function caseVariants(zone: string, count: number): string[] {
+  const letters: number[] = []
+  for (let index = 0; index < zone.length; index++)
+    if (/[a-z]/i.test(zone.charAt(index))) letters.push(index)
+  const variants = new Set<string>([zone, zone.toLowerCase(), zone.toUpperCase()])
+  for (let mask = 1; variants.size < count; mask++) {
+    let variant = ""
+    for (let index = 0; index < zone.length; index++) {
+      const char = zone.charAt(index)
+      const bit = letters.indexOf(index)
+      const flip = bit >= 0 && ((mask >> bit) & 1) === 1
+      const flipped = char === char.toUpperCase() ? char.toLowerCase() : char.toUpperCase()
+      variant += flip ? flipped : char
+    }
+    variants.add(variant)
+  }
+  return [...variants]
+}
+
+describe("AC23 (T045) date: case variants of one zone give one cell and one formatter", () => {
+  const ANSWER = "2026-01-15T00:00:00.000Z"
+  // Chatham is on daylight time (+13:45) in January; its standard offset is +12:45.
+  const CHATHAM = "Pacific/Chatham"
+  const CELL_IN_CHATHAM = "2026-01-15T13:45:00.000+13:45"
+  // Eucla is +08:45 all year (no daylight time).
+  const EUCLA = "Australia/Eucla"
+  const CELL_IN_EUCLA = "2026-01-15T08:45:00.000+08:45"
+
+  it("the variants are as assumed: 64 distinct spellings per zone, all accepted by parseCellOptions", () => {
+    for (const zone of [CHATHAM, EUCLA]) {
+      const variants = caseVariants(zone, 64)
+      expect(new Set(variants).size, zone).toBe(64)
+      expect(new Set(variants.map((variant) => variant.toLowerCase())), zone).toStrictEqual(
+        new Set([zone.toLowerCase()]),
+      )
+      for (const variant of variants)
+        expect(parseCellOptions({ timeZone: variant }).ok, variant).toBe(true)
+    }
+  })
+
+  it("AC23 every case variant of Pacific/Chatham gives the same cell (guard)", () => {
+    for (const zone of caseVariants(CHATHAM, 64)) {
+      expect(dateField.toCell(ANSWER, dateTimeConfig, cellOptions(zone)), zone).toBe(
+        CELL_IN_CHATHAM,
+      )
+    }
+  })
+
+  it("T045 writing cells with 64 case variants of one zone constructs at most one formatter", () => {
+    const variants = caseVariants(EUCLA, 64)
+    // Parsed before the spy: only constructions made by `toCell` are counted.
+    const options = variants.map((zone) => cellOptions(zone))
+    const spy = vi.spyOn(Intl, "DateTimeFormat")
+    let cells: string[]
+    let calls: Parameters<typeof Intl.DateTimeFormat>[]
+    try {
+      cells = options.map((option) => dateField.toCell(ANSWER, dateTimeConfig, option))
+      calls = [...spy.mock.calls]
+    } finally {
+      spy.mockRestore()
+    }
+    expect(cells).toStrictEqual(variants.map(() => CELL_IN_EUCLA))
+
+    const zones = calls
+      .map(([, init]) => init?.timeZone)
+      .filter((zone) => zone?.toLowerCase() === EUCLA.toLowerCase())
+    // Precondition: the spy sees the module's constructions (the zone's first cell builds one).
+    expect(
+      zones.length,
+      "the spy must see the formatter built for the first cell",
+    ).toBeGreaterThanOrEqual(1)
+    expect(
+      zones,
+      "formatters constructed for case variants of Australia/Eucla (at most one)",
+    ).toHaveLength(1)
   })
 })
 
