@@ -9,7 +9,7 @@ import {
   validateResponse,
 } from "../../src/api"
 import { fileField } from "../../src/fields/file"
-import { hostileJson, isJsonObject } from "../fixtures/hostile-json"
+import { HOSTILE_TIMEOUT_MS, hostileJson, isJsonObject } from "../fixtures/hostile-json"
 import { expectIssues, parseIssues } from "../helpers/issues"
 
 // T024 — the built-in `file` field (spec US6, R17; Edge cases "Empty", "Permission", "Limits"; plan
@@ -392,64 +392,68 @@ describe("AC12 file: the hostile-JSON corpus never throws", () => {
   ])
   const answerCodes = new Set(["invalid", "duplicate", "too_many"])
 
-  it.each(hostileJson)("AC12 as every file answer: $name", ({ value }) => {
-    const result = validateResponse(hostileForm, { single: value, many: value }, registry)
-    const fields = result.ok ? {} : result.fields
-    const normalised: AnswerSet = result.ok ? result.answers : {}
-    if (!result.ok) {
-      expectIssues(result.answerSet, [])
-      for (const issues of Object.values(result.fields)) parseIssues(issues)
-    }
-
-    if (value === null || (Array.isArray(value) && value.length === 0)) {
-      expectIssues(fields.single, [required])
-      expect(fields.many).toBeUndefined()
-      expect(Object.hasOwn(normalised, "many")).toBe(false)
-      return
-    }
-    if (!Array.isArray(value)) {
-      expectIssues(fields.single, [invalidAt()])
-      expectIssues(fields.many, [invalidAt()])
-      return
-    }
-
-    const items: readonly unknown[] = value
-    const badIndexes = items.flatMap((item, i) =>
-      typeof item === "string" && item !== "" ? [] : [i],
-    )
-    const strings = items.filter((item): item is string => typeof item === "string")
-    const unique = new Set(strings).size === strings.length
-
-    for (const fieldId of ["single", "many"] as const) {
-      const issues = fields[fieldId]
-      if (issues === undefined) {
-        // Accepted only when every entry is a non-empty, unique string within the limit.
-        expect(badIndexes, fieldId).toEqual([])
-        expect(unique, fieldId).toBe(true)
-        expect(normalised[fieldId], fieldId).toStrictEqual(items)
-        if (fieldId === "single") expect(items.length).toBe(1)
-        continue
+  it.each(hostileJson)(
+    "AC12 as every file answer: $name",
+    { timeout: HOSTILE_TIMEOUT_MS },
+    ({ value }) => {
+      const result = validateResponse(hostileForm, { single: value, many: value }, registry)
+      const fields = result.ok ? {} : result.fields
+      const normalised: AnswerSet = result.ok ? result.answers : {}
+      if (!result.ok) {
+        expectIssues(result.answerSet, [])
+        for (const issues of Object.values(result.fields)) parseIssues(issues)
       }
-      const parsedIssues = parseIssues(issues)
-      for (const issue of parsedIssues) {
-        expect(answerCodes.has(issue.code), `${fieldId}: ${issue.code}`).toBe(true)
+
+      if (value === null || (Array.isArray(value) && value.length === 0)) {
+        expectIssues(fields.single, [required])
+        expect(fields.many).toBeUndefined()
+        expect(Object.hasOwn(normalised, "many")).toBe(false)
+        return
       }
-      for (const index of badIndexes.slice(0, 50)) {
-        expect(parsedIssues, `${fieldId}: entry ${index}`).toContainEqual(invalidAt(index))
+      if (!Array.isArray(value)) {
+        expectIssues(fields.single, [invalidAt()])
+        expectIssues(fields.many, [invalidAt()])
+        return
       }
-      if (badIndexes.length === 0) {
-        if (!unique) {
-          expect(
-            parsedIssues.some((issue) => issue.code === "duplicate"),
-            fieldId,
-          ).toBe(true)
+
+      const items: readonly unknown[] = value
+      const badIndexes = items.flatMap((item, i) =>
+        typeof item === "string" && item !== "" ? [] : [i],
+      )
+      const strings = items.filter((item): item is string => typeof item === "string")
+      const unique = new Set(strings).size === strings.length
+
+      for (const fieldId of ["single", "many"] as const) {
+        const issues = fields[fieldId]
+        if (issues === undefined) {
+          // Accepted only when every entry is a non-empty, unique string within the limit.
+          expect(badIndexes, fieldId).toEqual([])
+          expect(unique, fieldId).toBe(true)
+          expect(normalised[fieldId], fieldId).toStrictEqual(items)
+          if (fieldId === "single") expect(items.length).toBe(1)
+          continue
         }
-        if (fieldId === "single" && items.length > 1) {
-          expect(parsedIssues, fieldId).toContainEqual(tooMany(1))
+        const parsedIssues = parseIssues(issues)
+        for (const issue of parsedIssues) {
+          expect(answerCodes.has(issue.code), `${fieldId}: ${issue.code}`).toBe(true)
+        }
+        for (const index of badIndexes.slice(0, 50)) {
+          expect(parsedIssues, `${fieldId}: entry ${index}`).toContainEqual(invalidAt(index))
+        }
+        if (badIndexes.length === 0) {
+          if (!unique) {
+            expect(
+              parsedIssues.some((issue) => issue.code === "duplicate"),
+              fieldId,
+            ).toBe(true)
+          }
+          if (fieldId === "single" && items.length > 1) {
+            expect(parsedIssues, fieldId).toContainEqual(tooMany(1))
+          }
         }
       }
-    }
-  })
+    },
+  )
 
   it("AC12 every hostile value as config gives catalogue issues only", () => {
     for (const { name, value } of hostileJson) {
@@ -475,10 +479,14 @@ describe("AC12 file: the hostile-JSON corpus never throws", () => {
     }
   })
 
-  it.each(hostileJson)("AC12 as maxFiles, maxSize and allowedTypes: $name", ({ value }) => {
-    for (const key of ["maxFiles", "maxSize", "allowedTypes"]) {
-      const result = parseFormSchema(formOf([entry({ config: { [key]: value } })]), registry)
-      if (!result.ok) parseIssues(result.issues)
-    }
-  })
+  it.each(hostileJson)(
+    "AC12 as maxFiles, maxSize and allowedTypes: $name",
+    { timeout: HOSTILE_TIMEOUT_MS },
+    ({ value }) => {
+      for (const key of ["maxFiles", "maxSize", "allowedTypes"]) {
+        const result = parseFormSchema(formOf([entry({ config: { [key]: value } })]), registry)
+        if (!result.ok) parseIssues(result.issues)
+      }
+    },
+  )
 })

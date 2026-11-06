@@ -8,7 +8,7 @@ import {
   validateResponse,
 } from "../../src/api"
 import { ratingField } from "../../src/fields/rating"
-import { hostileJson, isJsonObject } from "../fixtures/hostile-json"
+import { HOSTILE_TIMEOUT_MS, hostileJson, isJsonObject } from "../fixtures/hostile-json"
 import { expectIssues, parseIssues } from "../helpers/issues"
 
 // T017 — the built-in `rating` field (spec US4, R12; Edge cases "Empty", "Limits"; plan "Built-in
@@ -314,37 +314,42 @@ describe("AC12 rating: the hostile-JSON corpus never throws", () => {
   const maxOf = { five: 5, ten: 10 } as const
   const numberCodes = new Set(["too_small", "too_big", "not_integer"])
 
-  it.each(hostileJson)("AC12 as every rating answer: $name", ({ value }) => {
-    const result = validateResponse(hostileForm, { five: value, ten: value }, registry)
-    if (!result.ok) {
-      expectIssues(result.answerSet, [])
-      for (const issues of Object.values(result.fields)) parseIssues(issues)
-    }
-    const fields = result.ok ? {} : result.fields
+  it.each(hostileJson)(
+    "AC12 as every rating answer: $name",
+    { timeout: HOSTILE_TIMEOUT_MS },
+    ({ value }) => {
+      const result = validateResponse(hostileForm, { five: value, ten: value }, registry)
+      if (!result.ok) {
+        expectIssues(result.answerSet, [])
+        for (const issues of Object.values(result.fields)) parseIssues(issues)
+      }
+      const fields = result.ok ? {} : result.fields
 
-    if (value === null) {
-      expectIssues(fields.five, [required])
-      expect(fields.ten).toBeUndefined()
-      return
-    }
-    if (typeof value !== "number" || !Number.isFinite(value)) {
-      expectIssues(fields.five, [invalid])
-      expectIssues(fields.ten, [invalid])
-      return
-    }
-    for (const fieldId of ["five", "ten"] as const) {
-      const valid = Number.isInteger(value) && value >= 1 && value <= maxOf[fieldId]
-      const issues = fields[fieldId]
-      if (valid) {
-        expect(issues, fieldId).toBeUndefined()
-      } else {
-        if (issues === undefined) return expect.fail(`${fieldId}: ${String(value)} must be refused`)
-        for (const issue of parseIssues(issues)) {
-          expect(numberCodes.has(issue.code), `${fieldId}: ${issue.code}`).toBe(true)
+      if (value === null) {
+        expectIssues(fields.five, [required])
+        expect(fields.ten).toBeUndefined()
+        return
+      }
+      if (typeof value !== "number" || !Number.isFinite(value)) {
+        expectIssues(fields.five, [invalid])
+        expectIssues(fields.ten, [invalid])
+        return
+      }
+      for (const fieldId of ["five", "ten"] as const) {
+        const valid = Number.isInteger(value) && value >= 1 && value <= maxOf[fieldId]
+        const issues = fields[fieldId]
+        if (valid) {
+          expect(issues, fieldId).toBeUndefined()
+        } else {
+          if (issues === undefined)
+            return expect.fail(`${fieldId}: ${String(value)} must be refused`)
+          for (const issue of parseIssues(issues)) {
+            expect(numberCodes.has(issue.code), `${fieldId}: ${issue.code}`).toBe(true)
+          }
         }
       }
-    }
-  })
+    },
+  )
 
   it("AC12 every hostile value as config gives catalogue issues only", () => {
     for (const { name, value } of hostileJson) {

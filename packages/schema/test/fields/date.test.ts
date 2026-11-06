@@ -16,7 +16,7 @@ import {
   type DateAnswerCase,
   secondsOffsetCases,
 } from "../fixtures/date-cases"
-import { hostileJson, isJsonObject } from "../fixtures/hostile-json"
+import { HOSTILE_TIMEOUT_MS, hostileJson, isJsonObject } from "../fixtures/hostile-json"
 import { expectIssues, parseIssues } from "../helpers/issues"
 
 // T022 — the built-in `date` field (spec US6, R15, R16; Edge cases "Empty", "Failure", i18n,
@@ -405,28 +405,34 @@ describe("AC12 date: the hostile-JSON corpus never throws", () => {
     },
   ])
 
-  it.each(hostileJson)("AC12 as every date answer: $name", ({ value }) => {
-    const result = validateResponse(hostileForm, { dateOnly: value, dateTime: value }, registry)
-    if (!result.ok) {
-      expectIssues(result.answerSet, [])
-      for (const issues of Object.values(result.fields)) parseIssues(issues)
-    }
-    const fields = result.ok ? {} : result.fields
+  it.each(hostileJson)(
+    "AC12 as every date answer: $name",
+    { timeout: HOSTILE_TIMEOUT_MS },
+    ({ value }) => {
+      const result = validateResponse(hostileForm, { dateOnly: value, dateTime: value }, registry)
+      if (!result.ok) {
+        expectIssues(result.answerSet, [])
+        for (const issues of Object.values(result.fields)) parseIssues(issues)
+      }
+      const fields = result.ok ? {} : result.fields
 
-    if (value === null) {
-      expectIssues(fields.dateOnly, [required])
-      expect(fields.dateTime).toBeUndefined()
-      return
-    }
-    if (typeof value !== "string") {
-      expectIssues(fields.dateOnly, [invalid])
-      expectIssues(fields.dateTime, [invalid])
-      return
-    }
-    // No corpus string is a valid date; only the offset-less date-time asks for an offset.
-    expectIssues(fields.dateOnly, [invalidDate])
-    expectIssues(fields.dateTime, [value === "2026-11-04T17:30:00" ? offsetRequired : invalidDate])
-  })
+      if (value === null) {
+        expectIssues(fields.dateOnly, [required])
+        expect(fields.dateTime).toBeUndefined()
+        return
+      }
+      if (typeof value !== "string") {
+        expectIssues(fields.dateOnly, [invalid])
+        expectIssues(fields.dateTime, [invalid])
+        return
+      }
+      // No corpus string is a valid date; only the offset-less date-time asks for an offset.
+      expectIssues(fields.dateOnly, [invalidDate])
+      expectIssues(fields.dateTime, [
+        value === "2026-11-04T17:30:00" ? offsetRequired : invalidDate,
+      ])
+    },
+  )
 
   it("AC12 every hostile value as config gives catalogue issues only", () => {
     for (const { name, value } of hostileJson) {

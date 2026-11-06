@@ -10,7 +10,7 @@ import {
 } from "../../src/api"
 import { textField } from "../../src/fields/text"
 import { textareaField } from "../../src/fields/textarea"
-import { hostileJson, isJsonObject } from "../fixtures/hostile-json"
+import { HOSTILE_TIMEOUT_MS, hostileJson, isJsonObject } from "../fixtures/hostile-json"
 import { expectIssues, parseIssues } from "../helpers/issues"
 
 // T016 — the built-in `text` and `textarea` fields (spec US4, R10, R9; Edge cases "Empty", "Limits"
@@ -463,36 +463,40 @@ describe("AC12 text family: the hostile-JSON corpus never throws", () => {
   )
   const answerCodes = new Set(["invalid", "too_short", "too_long"])
 
-  it.each(hostileJson)("AC12 as every text and textarea answer: $name", ({ value }) => {
-    const answers = Object.fromEntries(hostileFields.map(({ fieldId }) => [fieldId, value]))
-    const result = validateResponse(hostileForm, answers, registry)
-    const fields = result.ok ? {} : result.fields
-    const normalised: AnswerSet = result.ok ? result.answers : {}
-    if (!result.ok) {
-      expectIssues(result.answerSet, [])
-      for (const issues of Object.values(result.fields)) parseIssues(issues)
-    }
+  it.each(hostileJson)(
+    "AC12 as every text and textarea answer: $name",
+    { timeout: HOSTILE_TIMEOUT_MS },
+    ({ value }) => {
+      const answers = Object.fromEntries(hostileFields.map(({ fieldId }) => [fieldId, value]))
+      const result = validateResponse(hostileForm, answers, registry)
+      const fields = result.ok ? {} : result.fields
+      const normalised: AnswerSet = result.ok ? result.answers : {}
+      if (!result.ok) {
+        expectIssues(result.answerSet, [])
+        for (const issues of Object.values(result.fields)) parseIssues(issues)
+      }
 
-    for (const { fieldId, required: isRequired } of hostileFields) {
-      const issues = fields[fieldId]
-      const blank = value === null || (typeof value === "string" && value.trim() === "")
-      if (blank) {
-        // Absent-like: `required` when required, else left out.
-        if (isRequired) expectIssues(issues, [required])
-        else expect(issues, fieldId).toBeUndefined()
-        expect(Object.hasOwn(normalised, fieldId), fieldId).toBe(false)
-      } else if (typeof value !== "string") {
-        expectIssues(issues, [invalid])
-      } else if (issues === undefined) {
-        // Accepted: only when ok overall can we see it; then it is the trimmed text.
-        if (result.ok) expect(normalised[fieldId], fieldId).toBe(value.trim())
-      } else {
-        for (const issue of parseIssues(issues)) {
-          expect(answerCodes.has(issue.code), `${fieldId}: ${issue.code}`).toBe(true)
+      for (const { fieldId, required: isRequired } of hostileFields) {
+        const issues = fields[fieldId]
+        const blank = value === null || (typeof value === "string" && value.trim() === "")
+        if (blank) {
+          // Absent-like: `required` when required, else left out.
+          if (isRequired) expectIssues(issues, [required])
+          else expect(issues, fieldId).toBeUndefined()
+          expect(Object.hasOwn(normalised, fieldId), fieldId).toBe(false)
+        } else if (typeof value !== "string") {
+          expectIssues(issues, [invalid])
+        } else if (issues === undefined) {
+          // Accepted: only when ok overall can we see it; then it is the trimmed text.
+          if (result.ok) expect(normalised[fieldId], fieldId).toBe(value.trim())
+        } else {
+          for (const issue of parseIssues(issues)) {
+            expect(answerCodes.has(issue.code), `${fieldId}: ${issue.code}`).toBe(true)
+          }
         }
       }
-    }
-  })
+    },
+  )
 
   it.each(TYPES)("AC12 %s: every hostile value as config gives catalogue issues only", (type) => {
     for (const { name, value } of hostileJson) {

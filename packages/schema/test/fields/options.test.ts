@@ -11,7 +11,7 @@ import {
 import { checkboxField } from "../../src/fields/checkbox"
 import { choiceField } from "../../src/fields/choice"
 import { dropdownField } from "../../src/fields/dropdown"
-import { hostileJson, isJsonObject } from "../fixtures/hostile-json"
+import { HOSTILE_TIMEOUT_MS, hostileJson, isJsonObject } from "../fixtures/hostile-json"
 import { expectIssues, parseIssues } from "../helpers/issues"
 
 // T020 — the built-in option fields `choice`, `dropdown` and `checkbox` with "Other" (spec US5,
@@ -1140,40 +1140,44 @@ describe("AC12 option fields: the hostile-JSON corpus never throws", () => {
     )
   }
 
-  it.each(hostileJson)("AC12 as every option answer: $name", ({ value }) => {
-    const answers = Object.fromEntries(hostileFields.map(({ fieldId }) => [fieldId, value]))
-    const result = validateResponse(hostileForm, answers, registry)
-    const fields = result.ok ? {} : result.fields
-    const normalised: AnswerSet = result.ok ? result.answers : {}
-    if (!result.ok) {
-      expectIssues(result.answerSet, [])
-      for (const issues of Object.values(result.fields)) parseIssues(issues)
-    }
+  it.each(hostileJson)(
+    "AC12 as every option answer: $name",
+    { timeout: HOSTILE_TIMEOUT_MS },
+    ({ value }) => {
+      const answers = Object.fromEntries(hostileFields.map(({ fieldId }) => [fieldId, value]))
+      const result = validateResponse(hostileForm, answers, registry)
+      const fields = result.ok ? {} : result.fields
+      const normalised: AnswerSet = result.ok ? result.answers : {}
+      if (!result.ok) {
+        expectIssues(result.answerSet, [])
+        for (const issues of Object.values(result.fields)) parseIssues(issues)
+      }
 
-    for (const { fieldId, required: isRequired } of hostileFields) {
-      const issues = fields[fieldId]
-      if (value === null || isEmptySelection(value)) {
-        if (isRequired) expectIssues(issues, [required])
-        else expect(issues, fieldId).toBeUndefined()
-        expect(Object.hasOwn(normalised, fieldId), fieldId).toBe(false)
-        continue
+      for (const { fieldId, required: isRequired } of hostileFields) {
+        const issues = fields[fieldId]
+        if (value === null || isEmptySelection(value)) {
+          if (isRequired) expectIssues(issues, [required])
+          else expect(issues, fieldId).toBeUndefined()
+          expect(Object.hasOwn(normalised, fieldId), fieldId).toBe(false)
+          continue
+        }
+        if (!isJsonObject(value)) {
+          expectIssues(issues, [invalidAt()])
+          continue
+        }
+        // No corpus object is a valid option answer for these configs.
+        if (issues === undefined) return expect.fail(`${fieldId}: ${show(value)} must be refused`)
+        const parsedIssues = parseIssues(issues)
+        for (const issue of parsedIssues) {
+          expect(answerCodes.has(issue.code), `${fieldId}: ${issue.code}`).toBe(true)
+        }
+        const extraKeys = Object.keys(value).filter((key) => key !== "optionIds" && key !== "other")
+        if (extraKeys.length > 0) {
+          expect(parsedIssues, `${fieldId}: extra key`).toContainEqual(invalidAt())
+        }
       }
-      if (!isJsonObject(value)) {
-        expectIssues(issues, [invalidAt()])
-        continue
-      }
-      // No corpus object is a valid option answer for these configs.
-      if (issues === undefined) return expect.fail(`${fieldId}: ${show(value)} must be refused`)
-      const parsedIssues = parseIssues(issues)
-      for (const issue of parsedIssues) {
-        expect(answerCodes.has(issue.code), `${fieldId}: ${issue.code}`).toBe(true)
-      }
-      const extraKeys = Object.keys(value).filter((key) => key !== "optionIds" && key !== "other")
-      if (extraKeys.length > 0) {
-        expect(parsedIssues, `${fieldId}: extra key`).toContainEqual(invalidAt())
-      }
-    }
-  })
+    },
+  )
 
   it.each(TYPES)("AC12 %s: every hostile value as config gives catalogue issues only", (type) => {
     for (const { name, value } of hostileJson) {

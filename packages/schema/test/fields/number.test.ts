@@ -8,7 +8,7 @@ import {
   validateResponse,
 } from "../../src/api"
 import { numberField } from "../../src/fields/number"
-import { hostileJson, isJsonObject } from "../fixtures/hostile-json"
+import { HOSTILE_TIMEOUT_MS, hostileJson, isJsonObject } from "../fixtures/hostile-json"
 import { expectIssues, parseIssues } from "../helpers/issues"
 
 // T017 — the built-in `number` field (spec US4, R11; Edge cases "Empty", "Limits", i18n; plan
@@ -418,35 +418,39 @@ describe("AC12 number: the hostile-JSON corpus never throws", () => {
   ])
   const boundedCodes = new Set(["too_small", "too_big", "not_integer"])
 
-  it.each(hostileJson)("AC12 as every number answer: $name", ({ value }) => {
-    const result = validateResponse(hostileForm, { plain: value, bounded: value }, registry)
-    if (!result.ok) {
-      expectIssues(result.answerSet, [])
-      for (const issues of Object.values(result.fields)) parseIssues(issues)
-    }
-    const fields = result.ok ? {} : result.fields
-
-    if (value === null) {
-      expectIssues(fields.plain, [required])
-      expect(fields.bounded).toBeUndefined()
-      return
-    }
-    if (typeof value !== "number" || !Number.isFinite(value)) {
-      expectIssues(fields.plain, [invalid])
-      expectIssues(fields.bounded, [invalid])
-      return
-    }
-    // A finite number: always valid without config, and its cell is plain decimal.
-    expect(fields.plain).toBeUndefined()
-    expect(cellProblem(value)).toBeUndefined()
-    if (fields.bounded !== undefined) {
-      for (const issue of parseIssues(fields.bounded)) {
-        expect(boundedCodes.has(issue.code), issue.code).toBe(true)
+  it.each(hostileJson)(
+    "AC12 as every number answer: $name",
+    { timeout: HOSTILE_TIMEOUT_MS },
+    ({ value }) => {
+      const result = validateResponse(hostileForm, { plain: value, bounded: value }, registry)
+      if (!result.ok) {
+        expectIssues(result.answerSet, [])
+        for (const issues of Object.values(result.fields)) parseIssues(issues)
       }
-    } else {
-      expect(Number.isInteger(value) && value >= 0 && value <= 10).toBe(true)
-    }
-  })
+      const fields = result.ok ? {} : result.fields
+
+      if (value === null) {
+        expectIssues(fields.plain, [required])
+        expect(fields.bounded).toBeUndefined()
+        return
+      }
+      if (typeof value !== "number" || !Number.isFinite(value)) {
+        expectIssues(fields.plain, [invalid])
+        expectIssues(fields.bounded, [invalid])
+        return
+      }
+      // A finite number: always valid without config, and its cell is plain decimal.
+      expect(fields.plain).toBeUndefined()
+      expect(cellProblem(value)).toBeUndefined()
+      if (fields.bounded !== undefined) {
+        for (const issue of parseIssues(fields.bounded)) {
+          expect(boundedCodes.has(issue.code), issue.code).toBe(true)
+        }
+      } else {
+        expect(Number.isInteger(value) && value >= 0 && value <= 10).toBe(true)
+      }
+    },
+  )
 
   it("AC12 every hostile value as config gives catalogue issues only", () => {
     for (const { name, value } of hostileJson) {

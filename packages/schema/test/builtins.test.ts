@@ -1,7 +1,7 @@
 import { describe, expect, expectTypeOf, it } from "vitest"
 import type { FieldDefinition, FormSchema, Issue, StoreAs, Summarize } from "../src/index"
 import * as api from "../src/index"
-import { hostileJson, isJsonObject } from "./fixtures/hostile-json"
+import { HOSTILE_TIMEOUT_MS, hostileJson, isJsonObject } from "./fixtures/hostile-json"
 import { expectIssues, parseIssues } from "./helpers/issues"
 
 // T032 — the final nine-field cross-check over `builtInFields`, imported from the package barrel
@@ -465,31 +465,35 @@ describe("AC12 the hostile corpus never throws for any built-in (cross-check)", 
     )
   }
 
-  it.each(hostileJson)("AC12 as the answer of every built-in field: $name", ({ value }) => {
-    const schema = hostileForm()
-    const answers = Object.fromEntries(HOSTILE_FIELDS.map(([fieldId]) => [fieldId, value]))
-    const result = api.validateResponse(schema, answers, registry())
+  it.each(hostileJson)(
+    "AC12 as the answer of every built-in field: $name",
+    { timeout: HOSTILE_TIMEOUT_MS },
+    ({ value }) => {
+      const schema = hostileForm()
+      const answers = Object.fromEntries(HOSTILE_FIELDS.map(([fieldId]) => [fieldId, value]))
+      const result = api.validateResponse(schema, answers, registry())
 
-    if (result.ok) {
-      // Every field accepted the value or left it out as unanswered; nothing else is in the set.
-      for (const key of Object.keys(result.answers)) {
-        expect(HOSTILE_FIELDS.map(([fieldId]) => fieldId)).toContain(key)
+      if (result.ok) {
+        // Every field accepted the value or left it out as unanswered; nothing else is in the set.
+        for (const key of Object.keys(result.answers)) {
+          expect(HOSTILE_FIELDS.map(([fieldId]) => fieldId)).toContain(key)
+        }
+        return
       }
-      return
-    }
-    expectIssues(result.answerSet, [])
-    for (const [fieldId, type] of HOSTILE_FIELDS) {
-      const issues = result.fields[fieldId]
-      if (issues !== undefined) {
-        expect(parseIssues(issues).length, fieldId).toBeGreaterThan(0)
+      expectIssues(result.answerSet, [])
+      for (const [fieldId, type] of HOSTILE_FIELDS) {
+        const issues = result.fields[fieldId]
+        if (issues !== undefined) {
+          expect(parseIssues(issues).length, fieldId).toBeGreaterThan(0)
+        }
+        // `null` is unanswered for every type: `required` alone when required, omitted otherwise.
+        if (value === null) {
+          if (fieldId.endsWith("_required")) expectIssues(issues, [required])
+          else expect(issues, `${type} ${fieldId}`).toBeUndefined()
+        }
       }
-      // `null` is unanswered for every type: `required` alone when required, omitted otherwise.
-      if (value === null) {
-        if (fieldId.endsWith("_required")) expectIssues(issues, [required])
-        else expect(issues, `${type} ${fieldId}`).toBeUndefined()
-      }
-    }
-  })
+    },
+  )
 
   it.each(BRIEF_ORDER)("AC12 %s: every hostile value as config gives catalogue issues", (type) => {
     for (const { name, value } of hostileJson) {

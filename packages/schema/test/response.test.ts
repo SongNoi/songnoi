@@ -11,7 +11,7 @@ import {
   parseFormSchema,
   validateResponse,
 } from "../src/api"
-import { hostileJson, isJsonObject } from "./fixtures/hostile-json"
+import { HOSTILE_TIMEOUT_MS, hostileJson, isJsonObject } from "./fixtures/hostile-json"
 import { acmeMeasure, acmeNote, acmeSignature } from "./fixtures/third-party"
 import { expectIssues, parseIssues } from "./helpers/issues"
 
@@ -644,26 +644,34 @@ describe("AC12: the hostile-JSON corpus never makes validateResponse throw", () 
   ])
   const fieldIds = hostileForm.fields.map(({ fieldId }) => fieldId)
 
-  it.each(hostileJson)("AC12 as the whole answer set: $name", ({ value }) => {
-    const result = validateResponse(hostileForm, value, registry)
-    if (!isJsonObject(value)) {
-      expectRejected(result, { answerSet: [invalidSet], fields: {} })
-      return
-    }
-    // No corpus key is a fieldId here: each own key is unknown, each required field is unanswered.
-    expectRejected(result, {
-      answerSet: Object.keys(value).map(unknownField),
-      fields: { sig: [required], band: [required], name: [required] },
-    })
-  })
+  it.each(hostileJson)(
+    "AC12 as the whole answer set: $name",
+    { timeout: HOSTILE_TIMEOUT_MS },
+    ({ value }) => {
+      const result = validateResponse(hostileForm, value, registry)
+      if (!isJsonObject(value)) {
+        expectRejected(result, { answerSet: [invalidSet], fields: {} })
+        return
+      }
+      // No corpus key is a fieldId here: each own key is unknown, each required field is unanswered.
+      expectRejected(result, {
+        answerSet: Object.keys(value).map(unknownField),
+        fields: { sig: [required], band: [required], name: [required] },
+      })
+    },
+  )
 
-  it.each(hostileJson)("AC12 as every field's answer: $name", ({ value }) => {
-    const answers = Object.fromEntries(fieldIds.map((fieldId) => [fieldId, value]))
-    const result = validateResponse(hostileForm, answers, registry)
-    expectCatalogueOnly(result)
-    if (!result.ok) {
-      expectIssues(result.answerSet, [])
-      for (const fieldId of Object.keys(result.fields)) expect(fieldIds).toContain(fieldId)
-    }
-  })
+  it.each(hostileJson)(
+    "AC12 as every field's answer: $name",
+    { timeout: HOSTILE_TIMEOUT_MS },
+    ({ value }) => {
+      const answers = Object.fromEntries(fieldIds.map((fieldId) => [fieldId, value]))
+      const result = validateResponse(hostileForm, answers, registry)
+      expectCatalogueOnly(result)
+      if (!result.ok) {
+        expectIssues(result.answerSet, [])
+        for (const fieldId of Object.keys(result.fields)) expect(fieldIds).toContain(fieldId)
+      }
+    },
+  )
 })

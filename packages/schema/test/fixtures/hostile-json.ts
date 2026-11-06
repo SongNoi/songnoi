@@ -22,6 +22,13 @@ export const HOSTILE_DEPTH = 10_000
 /** Length of the huge strings and of the long array. */
 export const HOSTILE_LENGTH = 100_000
 
+/**
+ * Per-test timeout for rows that feed the corpus to a validator. Asserting on every issue of the
+ * 100,000-entry rows takes a few seconds under parallel load (Turbo runs every package at once),
+ * which can pass Vitest's 5 s default; the validators themselves take well under a second.
+ */
+export const HOSTILE_TIMEOUT_MS = 30_000
+
 /** `JSON.parse`, so own `__proto__` / `constructor` keys are real own data properties. */
 function parsed(json: string): unknown {
   return JSON.parse(json) as unknown
