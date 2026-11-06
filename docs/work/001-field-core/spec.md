@@ -1111,5 +1111,6 @@ none of them blocks `/impl-plan`. Each flag keeps its remaining action.
   `optionIds` entry, so a repeat can give `duplicate` and `too_many` (R14); the version check
   consults the registry only when a check needs a definition — no issue for a new candidate field
   of an unregistered type, one `unknown_field_type` and no older comparison when the most recent
-  same-type earlier version needs a missing definition (R19). (Intro, R2, R4, R6, R8, R14–R16,
+  same-type earlier version needs a missing definition (R19). A date-time cell with an expanded year is export
+  output only: as an answer it gives `invalid_date`, like a date-only expanded year (R15, Limits). (Intro, R2, R4, R6, R8, R14–R16,
   R19, Edge cases (Empty, Failure, Limits))

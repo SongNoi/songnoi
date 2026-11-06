@@ -277,3 +277,9 @@ Source: `/converge` audit at b894856 (2026-11-06): M2, L1, L5, L6 resolved; one 
 
 - [x] T042 Add tests for the option and date rules the 2026-11-06 spec sync wrote into R14–R16 and Limits: a checkbox with `maxSelections: 1` and the same option ID twice gives `duplicate` at the repeat and `too_many {max: 1}`; with "Other" off, `{ optionIds: ["other"] }` with no `other`, with `other: ""` and with `other: null` gives only `unknown_option {optionId: "other"}` for choice, dropdown and checkbox; the date-time answer `0000-12-31T23:30-01:00` normalises to `0001-01-01T00:30:00.000Z`; the cell for `9999-12-31T23:30:00.000Z` with `Asia/Bangkok` is `+010000-01-01T06:30:00.000+07:00` (closes: M3.1–M3.4) — `packages/schema/test/fields/options.test.ts`, `packages/schema/test/fixtures/date-cases.ts`
 - [x] T043 Add version-history tests for when R19 looks up the registry: a candidate field whose `fieldId` is in no earlier version and whose type the registry lacks gives `{ ok: true }`; a field that has the candidate's unregistered type in v2 and a different type in v1 gives exactly one `unknown_field_type` at `["fields", i, "type"]` and no `field_type_changed` for v1 (closes: M3.5) — `packages/schema/test/version-history.test.ts`
+
+## Convergence 4
+
+Source: `/converge` audit at de87c22 (2026-11-06): M3 resolved; one new MEDIUM (M4: the Limits sentence "an expanded-year string is not a valid answer" has no date-time test), no CRITICAL/HIGH.
+
+- [ ] T044 Add date-time answer rows that `+010000-01-01T06:30:00.000+07:00` (the Bangkok expanded-year cell) and `+002026-11-04T10:30Z` give `invalid_date`; in the AC23 round-trip, replace the `continue` for expanded-year cells with an assertion that feeding the cell back gives `invalid_date` (closes: M4) — `packages/schema/test/fixtures/date-cases.ts`, `packages/schema/test/fields/date.test.ts`
