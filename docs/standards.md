@@ -22,6 +22,7 @@ files and `pnpm-lock.yaml`.
 | `pnpm lint`                             | ESLint: type-aware TypeScript, React Hooks, Next, architecture boundaries |
 | `pnpm typecheck`                        | TypeScript in every package (also checks `*.test-d.ts` type tests)        |
 | `pnpm test`                             | Unit tests, no database                                                   |
+| `pnpm test:browser`                     | Shared unit tests of browser-safe packages in real Chromium (Playwright)  |
 | `pnpm test:integration`                 | Integration tests against Postgres (`TEST_DATABASE_URL`)                  |
 | `pnpm --filter @songnoi/web e2e`        | Playwright smoke tests against the standalone build                       |
 | `pnpm --filter @songnoi/web db:migrate` | Create a migration in development                                         |
@@ -74,6 +75,11 @@ files and `pnpm-lock.yaml`.
 - Every acceptance criterion maps to a test or check (see each work item's `plan.md`).
 - Unit tests in `test/unit`, integration in `test/integration` (real Postgres), E2E in `e2e/`.
 - Bugs: commit a failing test first, then fix without editing it.
+- Browser parity (packages that run in the browser, e.g. `@songnoi/schema`): shared tests run in
+  both Node (`pnpm test`) and Chromium (`pnpm test:browser`). Node-only tests live in `test/node`,
+  Chromium-only tests in `test/browser`. Set `PLAYWRIGHT_CHROMIUM_PATH` to a Chromium binary if
+  Playwright's own Chromium is not installed. Browser tests that load `dist` need `pnpm build`
+  first.
 
 ## Commits and releases
 

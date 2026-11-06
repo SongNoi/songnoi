@@ -11,10 +11,17 @@ fields with no file field, and §10 never schedules one. The owner decided to ad
 
 ## Decision
 
-- **Field:** `file` is defined with `defineField` like every built-in (ADR 0007). Config:
-  max files, max size, allowed MIME types. The answer stores file references (storage key,
-  name, size, type), never the bytes. `storeAs: "none"`; `toCell` writes file names plus an
-  admin download path.
+- **Field** (updated 2026-11-05): `file` is defined with `defineField` like every built-in
+  (ADR 0007). Config: `maxFiles` (default 1), optional `maxSize` in bytes, optional
+  `allowedTypes` (MIME types, `type/*` allowed). The answer is a **list of opaque file IDs** —
+  references to upload records, never the bytes and never file metadata. Storage key, name,
+  size and type live with the upload record (`006`). `storeAs: "text"` with one stored value
+  (one `Answer` row) per file ID; `summarize: "count"`; not groupable. `toCell` joins the IDs
+  in answer order with `; `; `007` turns them into file names and admin download paths when it
+  builds the CSV.
+- **Untrusted IDs:** `@songnoi/schema` checks only the shape and count of the ID list. `005` /
+  `006` must check that each ID is a pending upload of this respondent for this field and passed
+  its size and type limits before submit links it.
 - **Storage:** RustFS joins Docker Compose with its own volume, reachable only on the internal
   network. The app talks to it with an S3 client from `shared/infrastructure`.
 - **Transfer through the app:** upload and download stream through `api/files/**` (already
@@ -32,3 +39,11 @@ fields with no file field, and §10 never schedules one. The owner decided to ad
   a file.
 - Backups must cover two volumes (Postgres and RustFS); `009` documents it.
 - Becomes Accepted when the owner amends brief §5 (9 fields) and §10 MVP item 1.
+
+## Change log
+
+- 2026-11-04 — first version, Proposed (owner interview, ADR 0006).
+- 2026-11-05 — the answer is a list of file IDs stored as one `text` value per file
+  (`storeAs: "text"`, not `"none"`); `toCell` writes the IDs and `007` resolves names and
+  download paths; file metadata lives with the upload record (owner decision 6, spec `001`
+  Flag 4). Still Proposed until the brief amendment of spec `001` Flag 1.

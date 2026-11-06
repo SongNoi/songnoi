@@ -1,5 +1,6 @@
 /**
- * @songnoi/schema — the form schema and `defineField` API.
- * Placeholder until work item 001 defines the schema.
+ * @songnoi/schema — the Form Schema, the `defineField` API and the field registry.
+ * The public surface is `api.ts` and the built-in fields (`fields/index.ts`); nothing else.
  */
-export const VERSION = "0.0.0"
+export * from "./api"
+export * from "./fields/index"

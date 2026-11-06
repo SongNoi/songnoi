@@ -7,8 +7,11 @@
     "NODE_EXTRA_CA_CERTS",
     "HTTP_PROXY",
     "HTTPS_PROXY",
-    "NO_PROXY"
+    "NO_PROXY",
+    "PLAYWRIGHT_CHROMIUM_PATH",
+    "PLAYWRIGHT_BROWSERS_PATH"
   ],
+  "globalDependencies": ["eslint.config.mjs"],
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
@@ -21,6 +24,9 @@
       "dependsOn": ["^build"]
     },
     "test": {
+      "dependsOn": ["^build"]
+    },
+    "test:browser": {
       "dependsOn": ["^build"]
     },
     "test:integration": {

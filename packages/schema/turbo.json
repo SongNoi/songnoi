@@ -4,6 +4,9 @@
   "tasks": {
     "test": {
       "dependsOn": ["build"]
+    },
+    "test:browser": {
+      "dependsOn": ["^build", "build"]
     }
   }
 }
