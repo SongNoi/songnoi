@@ -257,3 +257,9 @@ Notable edges:
 - Across stories: after Phase 5, US4, US5 and US6 are independent of each other and could be built in
   parallel by separate developers; only their `src/api.ts` / `fields/index.ts` and pinned-export
   edits must be merged in order.
+
+## Convergence 1
+
+Source: `/converge` audit at f30054f (2026-11-06): one MEDIUM finding (M1), no CRITICAL/HIGH.
+
+- [ ] T040 Write failing tests for the three misbehaving-plugin cases (an `incompatibleChanges` rule returning non-strings, a rule returning a non-array such as `"max"`, and a config-dependent `storeAs.pick` returning a kind outside its declared `kinds`), then make `checkVersionHistory` / `storeAsOf` refuse them so no non-catalogue or silently wrong result leaves the package; throw a `TypeError` like other plugin faults (R8: a broken plugin must be loud), record the rule in plan.md Revisions and close the "Open for review" note (closes: M1) — `packages/schema/src/core/version-history.ts`, `packages/schema/src/core/define-field.ts`, `packages/schema/test/version-history.test.ts`, `packages/schema/test/define-field.test.ts`, `docs/work/001-field-core/plan.md`
