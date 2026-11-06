@@ -139,7 +139,9 @@ function utcMs(y: number, mo: number, d: number, h: number, mi: number, s: numbe
   return date.getTime()
 }
 
-const CELL = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})\.(\d{3})(?:Z|([+-])(\d{2}):(\d{2}))$/
+// The year is four digits, or the ISO expanded form `±YYYYYY` a cell uses past year 9999 (R16).
+const CELL =
+  /^(\d{4}|[+-]\d{6})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})\.(\d{3})(?:Z|([+-])(\d{2}):(\d{2}))$/
 
 /** The instant a `…sssZ` or `…sss±HH:MM` string names, or `undefined` when malformed. */
 function instantOf(text: string): number | undefined {
@@ -254,6 +256,10 @@ describe("AC21 / AC23 date: the shared cell table", () => {
     for (const row of dateCellCases.filter((c) => c.includeTime)) {
       const cell = dateField.toCell(row.answer, dateTimeConfig, cellOptions(row.timeZone))
       expect(instantOf(cell), row.name).toBe(instantOf(row.answer))
+      expect(instantOf(cell), row.name).not.toBeUndefined()
+      // An expanded-year cell (R16, past year 9999) is outside the four-digit answer form (R15),
+      // so only four-digit-year cells are fed back as answers.
+      if (!/^\d{4}-/.test(cell)) continue
       const back = validateResponse(schema, { [FIELD_ID]: cell }, registry)
       expect(back, row.name).toStrictEqual({ ok: true, answers: { [FIELD_ID]: row.answer } })
     }

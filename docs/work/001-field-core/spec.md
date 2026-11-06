@@ -727,7 +727,8 @@ limit — throws. This is the one stated exception to "the package and the built
   `invalid_date` (also on an optional field); a non-string such as `20261104` → `invalid`.
 - A date-time cell whose wall-clock year passes 9999: `9999-12-31T23:30:00.000Z` with
   `Asia/Bangkok` → `+010000-01-01T06:30:00.000+07:00` (ISO expanded year form; 007 must expect
-  it).
+  it). Such a cell is export output only: an expanded-year string is not a valid answer
+  (`invalid_date`), the same as a date-only expanded year.
 - Daylight saving: an `America/New_York` cell has offset `-05:00` for a January instant and
   `-04:00` for a July instant.
 - A date-time cell in a zone whose offset at that instant has seconds (local mean time, before

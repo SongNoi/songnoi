@@ -204,6 +204,12 @@ export const dateTimeAnswerCases: readonly DateAnswerCase[] = [
     "0001-01-01T01:30+01:00",
     ok("0001-01-01T00:30:00.000Z"),
   ),
+  // T042 (M3.3): only the UTC year is range-checked (spec R15, Limits).
+  dateTime(
+    "local year 0000 is accepted when the offset moves the UTC instant into year 0001",
+    "0000-12-31T23:30-01:00",
+    ok("0001-01-01T00:30:00.000Z"),
+  ),
   dateTime(
     "a two-digit year stays in year 0050",
     "0050-06-15T12:00Z",
@@ -358,6 +364,13 @@ export const dateCellCases: readonly DateCellCase[] = [
     "2026-03-08T07:00:00.000Z",
     "America/New_York",
     "2026-03-08T03:00:00.000-04:00",
+  ),
+  // T042 (M3.4): a wall-clock year above 9999 uses the ISO expanded year form (spec R16, Limits).
+  dateTimeCell(
+    "Asia/Bangkok past the end of year 9999 writes the expanded year +010000",
+    "9999-12-31T23:30:00.000Z",
+    "Asia/Bangkok",
+    "+010000-01-01T06:30:00.000+07:00",
   ),
 ]
 

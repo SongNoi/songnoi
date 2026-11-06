@@ -448,6 +448,37 @@ describe("AC26 history input: a registry without the definition", () => {
     ])
   })
 
+  // T043 (M3.5): spec R19 "the version check consults the registry only when a check needs a
+  // definition": a new candidate field of an unregistered type gives no issue.
+  it("R19 a candidate field whose fieldId is in no earlier version and whose type the registry lacks is accepted (no lookup)", () => {
+    const result = checkVersionHistory(
+      [v(1, [field(B, "text")]), v(2, [field(B, "text"), field(C, "rating", RATING_5)])],
+      schema([field(B, "text"), field(A, "acme/signature", { format: "svg" })]),
+      withoutSignature,
+    )
+    expectOk(result)
+  })
+
+  // T043 (M3.5): spec R19 "one `unknown_field_type` and no older comparison when the most recent
+  // same-type earlier version needs a missing definition".
+  it("R19 the candidate's unregistered type in v2 and a different type in v1 gives exactly one unknown_field_type and no field_type_changed", () => {
+    const v1 = v(1, [field(A, "text")])
+    const v2 = v(2, [field(A, "acme/signature")])
+    const candidate = schema([field(B, "text"), field(A, "acme/signature")])
+    for (const earlier of [
+      [v1, v2],
+      [v2, v1],
+    ]) {
+      expectRefused(checkVersionHistory(earlier, candidate, withoutSignature), [
+        {
+          code: "unknown_field_type",
+          params: { type: "acme/signature" },
+          path: ["fields", 1, "type"],
+        },
+      ])
+    }
+  })
+
   it("a candidate type missing from the registry, with a different earlier type, gives field_type_changed", () => {
     const result = checkVersionHistory(
       [v(1, [field(A, "text")])],

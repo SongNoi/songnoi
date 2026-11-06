@@ -650,6 +650,34 @@ describe("AC19 option answers: unknown and repeated IDs", () => {
       [duplicate("other", 2)],
     )
   })
+
+  // T042 (M3.1): spec R14 "Selection limits count every entry of `optionIds`, repeats included";
+  // Limits "Checkbox with `maxSelections: 1` and the same option ID twice → `duplicate` and
+  // `too_many` {max: 1}".
+  it("AC19 R14 checkbox maxSelections 1: the same ID twice gives duplicate at the repeat and too_many {max: 1} (repeats count)", () => {
+    const config = { options: OPTIONS, maxSelections: 1 }
+    expectRefused(answer("checkbox", { optionIds: [FACEBOOK, FACEBOOK] }, config), [
+      duplicate(FACEBOOK, 1),
+      tooMany(1),
+    ])
+  })
+
+  // T042 (M3.2): spec R14 "With "Other" off, a selected `other` gives only that `unknown_option`:
+  // its text is not checked"; Limits "`allowOther: false` and `other` selected → only
+  // `unknown_option` {optionId: "other"}, with or without `other` text".
+  it.each(TYPES)(
+    'AC19 R14 %s: "other" while "Other" is off gives only unknown_option with no other key, other "" or other null',
+    (type) => {
+      const answers: readonly Json[] = [
+        { optionIds: ["other"] },
+        { optionIds: ["other"], other: "" },
+        { optionIds: ["other"], other: null },
+      ]
+      for (const value of answers) {
+        expectRefused(answer(type, value, WITHOUT_OTHER), [unknownOption("other", 0)])
+      }
+    },
+  )
 })
 
 describe('AC19 option answers: the "Other" text', () => {
