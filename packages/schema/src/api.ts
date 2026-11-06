@@ -19,7 +19,7 @@ export {
   type FormSchema,
   parseFormSchema,
 } from "./core/form-schema"
-export { idSchema } from "./core/ids"
+export { generateId, idSchema } from "./core/ids"
 export {
   customIssue,
   FieldDefinitionError,
@@ -30,3 +30,4 @@ export {
 export { createFieldRegistry, type FieldRegistry } from "./core/registry"
 export { type AnswerSet, validateResponse } from "./core/response"
 export { countGraphemes } from "./core/text"
+export { checkVersionHistory, type EarlierVersion } from "./core/version-history"

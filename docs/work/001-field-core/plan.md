@@ -1152,3 +1152,36 @@ Design unchanged; decisions the T022–T024 tests pinned and details the plan le
 - **File answers:** an empty or non-string entry → `invalid` at `[i]`; a repeat → `duplicate
 {value}` at the repeat's index (the first occurrence is not flagged); `too_many` and `duplicate`
   are both reported when every entry is a non-empty string; IDs are kept as given.
+
+### 2026-11-06 — implementation details (T030, T031)
+
+Design unchanged; details the plan left open, as built in `src/core/ids.ts` and
+`src/core/version-history.ts`.
+
+- **`generateId`:** reads `globalThis.crypto.getRandomValues` at every call (never cached or bound
+  at module load) and passes it one `Uint8Array(9)`; the bytes are encoded in byte order, three
+  bytes to four base64url characters, with no padding. No retry loop (no reserved value has 12
+  characters). `test/public-api.test.ts` already pinned `generateId` and `checkVersionHistory`
+  (written with T028/T029), so T030/T031 did not edit it.
+- **`checkVersionHistory` result and types:** `{ ok: true }` (exactly that object) or the shared
+  `Failure`. The element type of `earlier` is exported as the type `EarlierVersion`
+  (`{ version: number; schema: FormSchema }`, type only, no new runtime export). A `version` that
+  is not a `number` at all (JavaScript caller) is `invalid` like `0` or `1.5`. Repeats are flagged
+  only for valid versions; the first occurrence is not flagged.
+- **Lazy lookup (R19 "only when a check needs the definition"):** the registry is consulted only
+  when an earlier version holds the same `fieldId` with the same `type`. Hence:
+  - a candidate field whose `fieldId` appears in no earlier version is never looked up, so a new
+    field whose type the registry lacks gets no issue here (`parseFormSchema` with that registry
+    would already have refused it);
+  - the walk is from the highest `version` down and stops at the first version that needs the
+    missing definition: if v2 shares the candidate's type (registry miss) and v1 has another type,
+    the field gets one `unknown_field_type` and is skipped; v1's type change is not reported,
+    because whether v2 conflicts (and so which version is "the most recent conflict") cannot be
+    decided without the definition;
+  - a type change met before any lookup (most recent version first) is reported as
+    `field_type_changed` without a lookup, whether the earlier or the candidate type is missing.
+- **Order of evaluation:** the candidate's stored kind is computed once per field, on the first
+  same-type earlier version; `incompatibleChanges` is called once per same-type, same-kind earlier
+  version until one names properties (copied into a new array for the issue). An exception thrown
+  by a plugin's `storeAs.pick` or `incompatibleChanges` propagates (same rule as plugin code in
+  `validateResponse`).

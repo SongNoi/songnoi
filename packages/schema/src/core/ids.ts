@@ -22,3 +22,36 @@ export const RESERVED_FIELD_IDS: ReadonlySet<string> = new Set([
   "constructor",
   "prototype",
 ])
+
+// --- generation (R18) ----------------------------------------------------------------------------
+
+/** RFC 4648 §5 base64url alphabet: index = 6-bit value. */
+const BASE64URL = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_"
+
+/** 9 random bytes = 72 bits = exactly 12 base64url characters, no padding. */
+const ID_BYTES = 9
+
+/**
+ * Generates a new ID for a field or an option (R18): 9 bytes from Web Crypto
+ * (`globalThis.crypto.getRandomValues`, available in Node and every browser) encoded as 12
+ * base64url characters (`A–Z a–z 0–9 - _`), so 72 random bits without modulo bias. The result
+ * always passes `idSchema` and can never be a reserved value (none is 12 characters long). Generate
+ * once when the field or option is created; never derive an ID from a label.
+ */
+export function generateId(): string {
+  const bytes = new Uint8Array(ID_BYTES)
+  // Read at call time (never cached at module load), so the engine's current Web Crypto is used.
+  globalThis.crypto.getRandomValues(bytes)
+  let id = ""
+  for (let index = 0; index < ID_BYTES; index += 3) {
+    // Three bytes (24 bits) give four 6-bit characters, most significant first (byte order).
+    const group =
+      ((bytes[index] ?? 0) << 16) | ((bytes[index + 1] ?? 0) << 8) | (bytes[index + 2] ?? 0)
+    id +=
+      BASE64URL.charAt((group >>> 18) & 63) +
+      BASE64URL.charAt((group >>> 12) & 63) +
+      BASE64URL.charAt((group >>> 6) & 63) +
+      BASE64URL.charAt(group & 63)
+  }
+  return id
+}
