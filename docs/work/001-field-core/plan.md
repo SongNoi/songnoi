@@ -566,8 +566,9 @@ If the registry has none (schemas read with another registry) → `unknown_field
   `no-restricted-properties` for local-time and locale APIs (`getTimezoneOffset`, `getHours`,
   `getDate`, `getMonth`, `getFullYear`, `getDay`, `getMinutes`, `getSeconds`, the matching local
   setters, `toLocaleString`, `toLocaleDateString`, `toLocaleTimeString`, `Date.parse`);
-  `no-restricted-syntax` for `Intl.*` calls and constructors that read the default locale or zone
-  (no arguments, or `undefined` / `[]` as the locales argument), with the base preset's
+  `no-restricted-syntax` for `Intl.*` calls and constructors that read the default locale
+  (no arguments, or `undefined` / `[]` as the locales argument; a `DateTimeFormat` without a
+  `timeZone` option is not caught by lint and is left to review and the Chromium tripwire), with the base preset's
   "use server" ban spread back in (review 1 — T047). A second
   block for `src/fields/**` repeats those patterns (flat config replaces rule options) and adds
   `**/core/**` (constitution 2).

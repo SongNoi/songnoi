@@ -78,8 +78,9 @@ const noLocalTimeAndLocale = [
 ]
 
 // `Intl.X()` / `new Intl.X()` with no arguments, or with `undefined` or `[]` as the locales
-// argument, falls back to the environment's default locale (and, for dates, its zone). Always pass
-// an explicit locale (R20, T047).
+// argument, falls back to the environment's default locale. Always pass an explicit locale (R20,
+// T047). A DateTimeFormat without a `timeZone` option still uses the process zone; lint does not
+// catch that, so pass `timeZone` explicitly too.
 const INTL_DEFAULT_MESSAGE =
   "Intl with no locale reads the environment's default locale or zone; pass an explicit locale (R20)."
 // `Intl.getCanonicalLocales` and `Intl.supportedValuesOf` never read the default locale.
