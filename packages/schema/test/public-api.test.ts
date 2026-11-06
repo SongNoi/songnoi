@@ -11,14 +11,17 @@ import * as api from "../src/index"
 // (US2, T013): `CURRENT_SCHEMA_VERSION`, `parseFormSchema`, `idSchema`. Phase 5 (US3, T015):
 // `validateResponse`. Phase 6 (US4, T018): `countGraphemes` (the built-in definitions themselves
 // join the barrel in T033). Phase 8 (US6, T025): `parseCellOptions` (the cell-options schema itself
-// stays internal; `CellOptions` is a type only).
+// stays internal; `CellOptions` is a type only). Phase 9 (US7, T030, T031): `generateId`,
+// `checkVersionHistory`.
 const PINNED_EXPORTS: Readonly<Record<string, string>> = {
   CURRENT_SCHEMA_VERSION: "number",
   FieldDefinitionError: "function",
+  checkVersionHistory: "function",
   countGraphemes: "function",
   createFieldRegistry: "function",
   customIssue: "function",
   defineField: "function",
+  generateId: "function",
   idSchema: "object",
   issueSchema: "object",
   parseCellOptions: "function",
