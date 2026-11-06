@@ -209,6 +209,90 @@ describe("R2: storeAsOf", () => {
   })
 })
 
+// T040 (M1, R2, R8) — a config-dependent `pick` must return one of its declared `kinds`. A broken
+// plugin is loud: `storeAsOf` throws a `TypeError` instead of returning an undeclared kind.
+describe("R2/R8 (T040): storeAsOf refuses a pick that returns an undeclared kind", () => {
+  /**
+   * A test-local plugin declaring only `text` (fits `counts`). `pick` returns `text` for
+   * `{ odd: false }` and `returned` for `{ odd: true }`.
+   */
+  function pickingOn(returned: unknown) {
+    return defineField({
+      type: "acme/tone",
+      config: z.strictObject({ odd: z.boolean().default(false) }),
+      answer: () => z.string(),
+      toCell: (answer) => answer,
+      storedValues: (answer) => [answer],
+      analytics: {
+        storeAs: {
+          kinds: ["text"],
+          // JavaScript-style misbehaviour on purpose: TypeScript would refuse a pick that returns
+          // anything but a declared kind, so the test value is cast to the declared kind type.
+          pick: (config) => (config.odd ? (returned as "text") : "text"),
+        },
+        summarize: "counts",
+        groupable: false,
+      },
+    })
+  }
+
+  it("defining the plugin does not call pick, so it does not throw", () => {
+    expect(() => pickingOn("none")).not.toThrow()
+  })
+
+  it("a declared kind is still returned (control)", () => {
+    expect(storeAsOf(pickingOn("none"), { odd: false })).toBe("text")
+  })
+
+  it.each([
+    { name: "none (an R2 kind, but not declared and not fitting counts)", returned: "none" },
+    { name: "number (an R2 kind fitting no declared slot)", returned: "number" },
+    { name: "date (an R2 kind, not declared)", returned: "date" },
+    { name: "json (not an R2 kind at all)", returned: "json" },
+    { name: "Text (case differs from a declared kind)", returned: "Text" },
+    { name: "a non-string (42)", returned: 42 },
+    { name: "undefined", returned: undefined },
+    { name: "null", returned: null },
+    { name: "an array holding the declared kind", returned: ["text"] },
+  ])("R8 throws a TypeError when pick returns $name", ({ returned }) => {
+    const definition = pickingOn(returned)
+    expect(() => storeAsOf(definition, { odd: true })).toThrow(TypeError)
+  })
+
+  it("each kind of a multi-kind declaration is still returned (acme/measure, control)", () => {
+    expect(storeAsOf(acmeMeasure, { mode: "exact" })).toBe("number")
+    expect(storeAsOf(acmeMeasure, { mode: "band" })).toBe("text")
+  })
+
+  it("a multi-kind plugin whose pick returns an R2 kind outside its own list throws a TypeError", () => {
+    const measureLike = defineField({
+      type: "acme/measure-like",
+      config: z.strictObject({ mode: z.enum(["exact", "band", "odd"]).default("exact") }),
+      answer: () => z.string(),
+      toCell: (answer) => answer,
+      storedValues: (answer) => [answer],
+      analytics: {
+        storeAs: {
+          kinds: ["number", "text"],
+          // JavaScript-style misbehaviour on purpose: `date` is an R2 kind but not declared here,
+          // so TypeScript would refuse it; the cast lets the test hand it back anyway.
+          pick: (config) =>
+            config.mode === "exact"
+              ? "number"
+              : config.mode === "band"
+                ? "text"
+                : ("date" as "text"),
+        },
+        summarize: "count",
+        groupable: false,
+      },
+    })
+    expect(storeAsOf(measureLike, { mode: "exact" })).toBe("number")
+    expect(storeAsOf(measureLike, { mode: "band" })).toBe("text")
+    expect(() => storeAsOf(measureLike, { mode: "odd" })).toThrow(TypeError)
+  })
+})
+
 describe("AC7: stored values", () => {
   it("AC7 a storeAs none fixture (acme/note) gives an empty stored-value list", () => {
     expect(acmeNote.storedValues(true, { text: "Please read" })).toEqual([])

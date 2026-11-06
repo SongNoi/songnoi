@@ -837,3 +837,162 @@ describe("AC29 third-party rules go through the same definition call", () => {
     expectOk(result)
   })
 })
+
+// --- T040 (M1, R8): a misbehaving plugin rule is loud, never a non-catalogue result ------------
+
+describe("R8 (T040): checkVersionHistory throws a TypeError for a plugin rule that breaks its contract", () => {
+  /**
+   * A test-local plugin whose `incompatibleChanges` returns `returned` whatever the configs. Its
+   * config has exactly the keys `max` and `icon`, both with defaults, so both are present in every
+   * parsed config.
+   */
+  function ruleReturning(returned: unknown) {
+    const stars = defineField({
+      type: "acme/stars",
+      config: z.strictObject({
+        max: z.int().min(2).max(10).default(5),
+        icon: z.enum(["star", "heart"]).default("star"),
+      }),
+      answer: (config) => z.int().min(1).max(config.max),
+      toCell: (answer) => String(answer),
+      storedValues: (answer) => [answer],
+      // JavaScript-style misbehaviour on purpose: TypeScript only accepts an array of the
+      // config's own string keys here, so the test value is cast to that type.
+      incompatibleChanges: () => returned as readonly ("max" | "icon")[],
+      analytics: { storeAs: "number", summarize: "distribution+avg", groupable: true },
+    })
+    const withStars = createFieldRegistry([stars])
+    return () =>
+      checkVersionHistory(
+        [v(1, [field(A, "acme/stars", RATING_5)], withStars)],
+        schema([field(A, "acme/stars", RATING_10)], withStars),
+        withStars,
+      )
+  }
+
+  it("a well-behaved rule returning [max] still gives field_config_incompatible (control)", () => {
+    expectRefused(ruleReturning(["max"])(), [
+      {
+        code: "field_config_incompatible",
+        params: { fieldId: A, type: "acme/stars", properties: ["max"], version: 1 },
+        path: ["fields", 0],
+      },
+    ])
+  })
+
+  it("a well-behaved rule returning [max, icon] gives both properties (control)", () => {
+    expectRefused(ruleReturning(["max", "icon"])(), [
+      {
+        code: "field_config_incompatible",
+        params: { fieldId: A, type: "acme/stars", properties: ["max", "icon"], version: 1 },
+        path: ["fields", 0],
+      },
+    ])
+  })
+
+  it("a well-behaved rule returning [] still accepts the change (control)", () => {
+    expectOk(ruleReturning([])())
+  })
+
+  it.each([
+    { name: "a number ([42])", returned: [42] },
+    { name: "a valid key next to a number ([max, 42])", returned: ["max", 42] },
+    { name: "null ([null])", returned: [null] },
+    { name: "a symbol ([Symbol(max)])", returned: [Symbol("max")] },
+    { name: "a nested array ([[max]])", returned: [["max"]] },
+  ])(
+    "R8 throws a TypeError when incompatibleChanges returns non-strings: $name",
+    ({ returned }) => {
+      expect(ruleReturning(returned)).toThrow(TypeError)
+    },
+  )
+
+  it.each([
+    { name: 'a string ("max", which would be spread to m, a, x)', returned: "max" },
+    { name: "an array-like object ({0: max, length: 1})", returned: { 0: "max", length: 1 } },
+    { name: "a Set ({max})", returned: new Set(["max"]) },
+    { name: "null", returned: null },
+    { name: "undefined", returned: undefined },
+    { name: "a number (1)", returned: 1 },
+  ])(
+    "R8 throws a TypeError when incompatibleChanges returns a non-array: $name",
+    ({ returned }) => {
+      expect(ruleReturning(returned)).toThrow(TypeError)
+    },
+  )
+
+  it.each([
+    { name: "a name the config does not have ([colour])", returned: ["colour"] },
+    { name: "a valid key next to an unknown one ([max, colour])", returned: ["max", "colour"] },
+    { name: "the empty string ([''])", returned: [""] },
+    { name: "a case variant of a key ([Max])", returned: ["Max"] },
+  ])(
+    "R8 throws a TypeError when incompatibleChanges returns names that are not config keys: $name",
+    ({ returned }) => {
+      expect(ruleReturning(returned)).toThrow(TypeError)
+    },
+  )
+
+  /**
+   * A test-local plugin declaring only `text` (fits `counts`). Its `pick` returns `text` for
+   * `{ tone: "plain" }` and `returned` for `{ tone: "odd" }`.
+   */
+  function pickingOn(returned: unknown) {
+    const tone = defineField({
+      type: "acme/tone",
+      config: z.strictObject({ tone: z.enum(["plain", "odd"]).default("plain") }),
+      answer: () => z.string(),
+      toCell: (answer) => answer,
+      storedValues: (answer) => [answer],
+      analytics: {
+        storeAs: {
+          kinds: ["text"],
+          // JavaScript-style misbehaviour on purpose: TypeScript would refuse a pick that returns
+          // anything but a declared kind, so the test value is cast to the declared kind type.
+          pick: (config) => (config.tone === "odd" ? (returned as "text") : "text"),
+        },
+        summarize: "counts",
+        groupable: false,
+      },
+    })
+    const withTone = createFieldRegistry([tone])
+    return (previousTone: "plain" | "odd", candidateTone: "plain" | "odd") => () =>
+      checkVersionHistory(
+        [v(1, [field(A, "acme/tone", { tone: previousTone })], withTone)],
+        schema([field(A, "acme/tone", { tone: candidateTone })], withTone),
+        withTone,
+      )
+  }
+
+  it("a pick returning its declared kind for both versions passes (control)", () => {
+    expectOk(pickingOn("none")("plain", "plain")())
+  })
+
+  const UNDECLARED = [
+    { name: "none (an R2 kind, not declared)", returned: "none" },
+    { name: "date (an R2 kind, not declared)", returned: "date" },
+    { name: "json (not an R2 kind)", returned: "json" },
+    { name: "42 (a non-string)", returned: 42 },
+  ]
+
+  it.each(UNDECLARED)(
+    "R8 throws a TypeError when pick returns $name for the candidate's config",
+    ({ returned }) => {
+      expect(pickingOn(returned)("plain", "odd")).toThrow(TypeError)
+    },
+  )
+
+  it.each(UNDECLARED)(
+    "R8 throws a TypeError when pick returns $name for the earlier version's config",
+    ({ returned }) => {
+      expect(pickingOn(returned)("odd", "plain")).toThrow(TypeError)
+    },
+  )
+
+  it.each(UNDECLARED)(
+    "R8 throws a TypeError when pick returns $name for both configs (would otherwise pass silently)",
+    ({ returned }) => {
+      expect(pickingOn(returned)("odd", "odd")).toThrow(TypeError)
+    },
+  )
+})
