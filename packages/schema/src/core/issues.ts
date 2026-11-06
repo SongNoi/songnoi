@@ -68,8 +68,12 @@ export const issueSchema = z.discriminatedUnion("code", [
   entry("invalid_time_zone", { timeZone: z.string() }),
 ])
 
+/** One validation problem: a catalogue `code`, its `params` and the `path` to the bad value. */
 export type Issue = z.output<typeof issueSchema>
+
+/** The closed set of issue codes (R4's catalogue). */
 export type IssueCode = Issue["code"]
+
 export type IssuePath = Issue["path"]
 type ParamsOf<C extends IssueCode> = Extract<Issue, { code: C }>["params"]
 

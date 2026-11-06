@@ -1185,3 +1185,17 @@ Design unchanged; details the plan left open, as built in `src/core/ids.ts` and
   version until one names properties (copied into a new array for the issue). An exception thrown
   by a plugin's `storeAs.pick` or `incompatibleChanges` propagates (same rule as plugin code in
   `validateResponse`).
+
+### 2026-11-06 — Phase 10 (T032–T036)
+
+Design unchanged; details the build settled.
+
+- **Barrel:** `fields/index.ts` re-exports the nine definitions by name and adds `builtInFields`
+  (`Object.freeze([...] as const)`, brief §5 order); `index.ts` is `export * from "./api"` and
+  `export * from "./fields/index"`, as in Module layout. `public-api.test.ts` already held the
+  final 24 runtime names (written with T032), so T033 did not edit it.
+- **TSDoc:** every public export already had a TSDoc comment except the `Issue` and `IssueCode`
+  types (`core/issues.ts`), which got one; `builtInFields` got one in `fields/index.ts`.
+- **T034:** the build-artifact tests pass against the existing `tsdown.config.ts`; no change.
+- **Standards:** the browser parity bullet also notes that browser tests loading `dist` need
+  `pnpm build` first (T035's dist smoke).
