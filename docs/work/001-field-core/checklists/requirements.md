@@ -13,7 +13,9 @@ after the second `/analyze` pass — a sync with the revised plan.md (N05, N07, 
 = rating config codes named in Limits; F29 accepted as-is), no owner decision (one further sync
 entry); and again on 2026-11-05 after the third `/analyze` pass — P06 (AC24 `file` config
 codes), P07 (this list and the spec log now match), P08 (`idSchema` added to Terms), no owner
-decision (one further sync entry).
+decision (one further sync entry); and again on 2026-11-06 after `/implement` and two `/converge`
+rounds — a sync with the implementation details recorded in plan.md Revisions (converge finding
+L1, seven items), no owner decision (Clarifications, Session 2026-11-06: one sync entry).
 
 ## Content quality
 
@@ -52,13 +54,15 @@ decision (one further sync entry).
       `/analyze` sync: intro, R4, R8, R19, R20, Edge cases (Failure, Limits), AC10, AC12, AC26,
       Flag 9; third `/analyze` sync: intro (Terms), AC24 — and logged under
       `## Clarifications` → `### Session 2026-11-05` (12 Q/A entries plus three entries listing
-      the syncs).
+      the syncs); 2026-11-06 implementation sync: intro, R2, R4, R6, R8, R14–R16, R19, Edge cases
+      (Empty, Failure, Limits), Flag 9 — logged under `### Session 2026-11-06` (one sync entry).
 - [x] Requirements are numbered, testable, and each is tagged with at least one user story.
 - [x] Requirement count within the ADR 0006 limit: **20 / 20**; acceptance criteria **29**. No
       round added a requirement (the second extended R1, R4, R12 and R19; the third extended R1,
       R4–R8, R10, R11 and R13–R17) and the third added no AC, only extended existing ones; the
       second `/analyze` sync extended R4, R8, R19, R20 and AC10, AC12, AC26 and added neither;
-      nothing trimmed; the fallback split is mapped to stories, plan steps and AC rows in Flag 9,
+      the 2026-11-06 implementation sync extended R2, R4, R6, R8, R14–R16 and R19 and the Edge
+      cases, changed no AC text and added neither (AC numbers stable); nothing trimmed; the fallback split is mapped to stories, plan steps and AC rows in Flag 9,
       with the same row list as plan.md Risk 6 (AC6, AC7, AC9, AC12 hostile-corpus and AC13 rows
       of the option, date and file families; AC10 option-ID rows; AC27 `date` case; AC29
       option-field and `file` rows).
@@ -81,7 +85,11 @@ decision (one further sync entry).
       decimal, which characters are line breaks, rare BCP 47 forms and engine CLDR differences)
       and the second `/analyze` sync cases (a registry lacking a schema's type in whole-response
       validation and in the version check, earlier versions out of order, invalid or repeated
-      version numbers, engines without `Intl.Segmenter`, rating config codes with params).
+      version numbers, engines without `Intl.Segmenter`, rating config codes with params) and the
+      2026-11-06 implementation-sync cases (plugin rules that break their contract → developer
+      `TypeError`, lazy registry lookup in the version check, `config: null`, export-option key and
+      zone type, untrimmed and non-string dates, local year 0000, expanded-year cells, "Other"
+      off with `other` selected, repeated IDs counted toward limits).
 - [x] Scope is bounded: nothing from items 002–009 or Phase 2 is required; display rules, CSV time
       zone, upload/storage, `Answer` columns, cross-tab and Builder behaviour are deferred by name.
 - [x] Owner decisions 1–6 in intent.md and the twelve 2026-11-05 answers are carried as
@@ -105,7 +113,12 @@ decision (one further sync entry).
       claim "modern" / "current" browsers but are proven in Chromium only; other engines are a
       named residual risk (Flag 8; `/analyze` F29 accepted as-is). R20's `Intl.Segmenter`
       baseline is a stated scope limit, not a behaviour this item can prove: both test engines
-      have it, so the "throws without it" exception has no AC, matching plan.md Risk 10.
+      have it, so the "throws without it" exception has no AC, matching plan.md Risk 10. The
+      2026-11-06 sync details (developer `TypeError`s for plugin contract faults, lazy registry
+      lookup, export-option key/zone type, date trimming and year edges, `config: null`, "Other"
+      off, repeat counting) refine requirements that existing ACs already prove (AC8, AC10, AC12,
+      AC19, AC21–AC23, AC26, AC27, AC29); their exact rows are pinned by the tests recorded in
+      plan.md Revisions, not by new AC text.
 - [x] ADR 0006 exit check is included (AC1: built-in and fixture field through the same public
       calls; AC2: build with no React dependency).
 - [x] Acceptance criteria are final — AC7, AC19 and AC20 use the decided answer shape; AC26
@@ -151,7 +164,8 @@ decision (one further sync entry).
       (R4, AC8). The never-throw promise covers only package and built-in code (R8), on engines
       that meet R20's `Intl.Segmenter` baseline; that is a statement about whose bugs surface,
       not a privilege. A registry miss is reported the same way for any type, built-in or plugin
-      (R8, R19).
+      (R8, R19). The run-time contract checks on stored kinds and answer-compatibility results
+      apply to every definition alike (R2, R19); built-ins pass them, so they are not a privilege.
 - [x] 3 Self-host first — no network requests, no environment reads (R20).
 - [x] 4 Two separate worlds — no auth surface here; public-safe schema and untrusted-input rules
       in Edge cases. Unknown keys are refused down to built-in configs and option entries (R6); a

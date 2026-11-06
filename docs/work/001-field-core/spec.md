@@ -14,7 +14,9 @@ ADR gaps) were answered by the owner on 2026-11-05 in two rounds. A third round 
 after `/analyze`, settled four more points (number cells, strict configs, plugin exceptions,
 checkbox `maxSelections`) and aligned the spec with the approved `plan.md` and ADR 0012; a
 second `/analyze` pass the same day led to one more sync with the revised `plan.md`, with no owner
-decision. All answers are written into the sections below (log: Clarifications).
+decision. On 2026-11-06, after `/implement` and two `/converge` rounds, the spec was synced with
+the implementation details recorded in `plan.md` (Revisions), again with no owner decision. All
+answers are written into the sections below (log: Clarifications).
 
 **Terms** (spec term = API name in plan.md, for tracing only): "export options" = `CellOptions`,
 validated by `parseCellOptions`; "answer-compatibility rule" = `incompatibleChanges`; "unanswered"
@@ -257,7 +259,11 @@ environment (process time zone, locale, variables); the compatibility rule is pu
 — _US1_
 
 **R2. Analytics data and stored values.** `storeAs` is one of `text`, `number`, `date` (calendar
-date), `datetime` (UTC instant) or `none`, and may depend on the parsed config (needed by `date`).
+date), `datetime` (UTC instant) or `none`, and may depend on the parsed config (needed by `date`). A
+config-dependent `storeAs` declares the kinds it can give; if for some config it resolves to
+anything other than one of its declared kinds, the package throws a developer-facing `TypeError`
+wherever the kind is read (e.g. the version check, R19): a broken plugin is loud (R8), and this is
+not a catalogue issue (R4).
 `summarize` is one of a closed set that item 008 maps to charts — `responses`, `counts`,
 `histogram+stats`, `distribution+avg`, `timeline`, `count`, `none` — and third-party fields use
 the same set. A definition is refused (`incompatible_analytics`) when `summarize` does not fit
@@ -300,6 +306,13 @@ these codes, and any other code, or a rule failure with no matching code, comes 
 - definitions, registry and export: `invalid_field_type` {type}, `duplicate_field_type` {type},
   `incompatible_analytics` {storeAs, summarize}, `invalid_time_zone` {timeZone}.
 
+The catalogue covers issues about definitions, schemas, answers and export options. Outside it are
+the faults the package detects in a third-party definition's own rules at run time — a stored kind
+the definition did not declare (R2), an answer-compatibility result that is not a list of config
+property names (R19): they are programming faults, not issues about a schema or an answer, so the
+package throws a developer-facing `TypeError` for them, like any other exception from plugin code
+(R8), and they have no code or message file entry.
+
 — _US1, US2, US3, US7_
 
 ### Form Schema
@@ -331,8 +344,9 @@ that fails its type's config schema (codes from R4 at the config path); and a re
 just as strict. A released config shape is frozen: a built-in config changes only with a new
 `schemaVersion` and a migration step (R7); a plugin cannot migrate stored versions, so it must not
 change its released config shape (with a strict config, a removed or renamed key would make every
-stored version that holds it fail with `unknown_property`). The parsed schema has every config
-default written in, so a stored version does not change meaning if a default changes later, and
+stored version that holds it fail with `unknown_property`). Only an absent `config` gets the
+defaults: `config: null` is passed to the type's config schema like any other value, and every
+built-in refuses it with `invalid`. The parsed schema has every config default written in, so a stored version does not change meaning if a default changes later, and
 parsing the parsed output again gives an equal value. — _US2_
 
 **R7. Format version and migration.** Stored schemas are read through one public entry point that
@@ -356,10 +370,13 @@ read with: a field whose `type` is missing from the registry passed to this call
 `unknown_field_type` {type} in its own group at path `[]`, whether it is answered or not; its value
 is not checked, the result is a failure, and nothing is thrown, so a registry that does not match
 the schema can never accept a response. On any engine that meets R20's baseline, the package and
-the built-in fields never throw for any JSON input (the one stated exception is in R20). An
-exception thrown by a third-party field's own code (e.g. its answer or "unanswered" rule)
-propagates to the caller unchanged: a broken plugin must be loud, not disguised as an invalid
-answer. — _US3_
+the built-in fields never throw for any JSON input (the one stated exception is in R20; faults of
+third-party definitions are not covered). An exception thrown by a third-party field's own code
+(e.g. its answer or "unanswered" rule) propagates to the caller unchanged, and a third-party rule
+whose result breaks its contract — a stored kind it did not declare (R2), an answer-compatibility
+result that is not a list of config property names (R19) — makes the package throw a
+developer-facing `TypeError` wherever that result is read: a broken plugin must be loud, not
+disguised as an invalid answer or a catalogue issue (R4). — _US3_
 
 **R9. Answered, unanswered and unknown.** A field is unanswered when its key is absent or `null`;
 built-in fields are also unanswered when text is blank after trimming, a selection is empty or a
@@ -422,9 +439,12 @@ string, `optionIds` that is not a list of strings, an extra property) is `invali
 `{ "optionIds": [] }` is an empty selection, i.e. unanswered (R9).
 
 - Every selected ID is an option of the field, or the reserved `other` when `allowOther` is true;
-  anything else — including `other` while "Other" is off — fails with `unknown_option`. No ID may
-  appear twice (`duplicate`).
+  anything else — including `other` while "Other" is off — fails with `unknown_option`. With
+  "Other" off, a selected `other` gives only that `unknown_option`: its text is not checked, so
+  there is no `other_text_required`. No ID may appear twice (`duplicate`).
 - `choice` and `dropdown` allow at most one ID in `optionIds` (`too_many` {max: 1}).
+- Selection limits count every entry of `optionIds`, repeats included, so a repeated ID can give
+  both `duplicate` and `too_many`.
 - When `other` is selected, `other` is required and must be non-empty after trimming; missing,
   `null`, empty or whitespace-only text fails with `other_text_required` (`null` counts as
   missing), and the normalised answer holds the trimmed text. When `other` is not selected, the
@@ -450,9 +470,14 @@ string, `optionIds` that is not a list of strings, an extra property) is `invali
   optional fraction of 1–9 digits, and an explicit `Z` or `±HH:MM` offset; without an offset it
   fails with `offset_required`. It is normalised to the UTC instant `YYYY-MM-DDTHH:mm:ss.sssZ`: a
   fraction is truncated (not rounded) to milliseconds, and the original offset is not kept. The
-  UTC instant must lie in years 0001–9999, else `invalid_date`. Stored value of kind `datetime`.
+  UTC instant must lie in years 0001–9999, else `invalid_date`; only the UTC year is checked, so a
+  local year 0000 is accepted when its offset moves the instant into year 0001
+  (`0000-12-31T23:30-01:00` → `0001-01-01T00:30:00.000Z`). Stored value of kind `datetime`.
 - A date-time when `includeTime` is false, a date-only value when it is true, or an impossible date
   or time fails with `invalid_date`.
+- A date answer is a string and is not trimmed: a non-string fails with `invalid`, and a string
+  padded with spaces or a line break, `""` or a blank string fails like any other refused string
+  (`invalid_date`, or `offset_required` for a date-time shape without an offset).
 - Analytics: `date` or `datetime` according to `includeTime`, `timeline`, not groupable.
 
 — _US6_
@@ -462,10 +487,14 @@ is passed. For a date-time it returns the instant as ISO 8601 with milliseconds:
 when no time zone is passed, otherwise in the given IANA time zone with that instant's offset
 (daylight saving applied) — e.g. `2026-11-04T10:30:00.000Z` with `Asia/Bangkok` gives
 `2026-11-04T17:30:00.000+07:00`. An offset with seconds (historical local mean time) is rounded to
-the minute and the wall time shifted to match, so the cell still names the exact instant. The time
+the minute and the wall time shifted to match, so the cell still names the exact instant. A
+wall-clock year above 9999 — reachable only for instants at the very end of year 9999 in a zone
+ahead of UTC — is written in the ISO 8601 expanded year form (`9999-12-31T23:30:00.000Z` with
+`Asia/Bangkok` gives `+010000-01-01T06:30:00.000+07:00`); item 007 must expect it. The time
 zone is checked once, when the export options are validated, before any cell is written: a name
-that is not an IANA time zone (e.g. `Mars/Base`, `+07:00`, empty) fails with `invalid_time_zone`;
-`toCell` only ever receives validated options and never fails on a zone (R1). Which zone the CSV
+that is not an IANA time zone (e.g. `Mars/Base`, `+07:00`, empty) fails with `invalid_time_zone`,
+a time zone that is not a string with `invalid`, and an export-option key other than `timeZone`
+with `unknown_property` {key}; `toCell` only ever receives validated options and never fails on a zone (R1). Which zone the CSV
 uses is decided in item 007 (intent open question 1). — _US6_
 
 **R17. `file`.** Config: `maxFiles` (integer ≥ 1, default 1); optional `maxSize` in bytes (integer
@@ -507,17 +536,26 @@ field checks are:
   rule (R1) refuses: the rule receives the earlier and the new parsed config and either accepts the
   change or names the config properties that make answers incomparable →
   `field_config_incompatible` with those properties. A definition without a rule accepts every
-  config change that keeps the stored kind.
+  config change that keeps the stored kind. The rule's result must be a list whose every entry is
+  a config property name of the field: a name counts when either compared config holds it as its
+  own property, or the definition's config shape declares it (so an optional key without a
+  default, absent from both configs, may be named); inherited names (e.g. `toString`) never
+  count. Any other result (a bare string, `null`, a non-name entry) makes the check throw a
+  developer-facing `TypeError` (R8), not a catalogue issue (R4).
 
 Each conflicting `fieldId` gives one error, located at that field in the candidate
 (`["fields", i]`), naming the earlier `version`: the first failing check in the order above,
 against the most recent earlier version it conflicts with. The Builder must then issue a new
 `fieldId`, so no merged column or summary mixes kinds or scales. The call reads `type`, `storeAs`
 and the rules from the registry's definitions only, with no special case for any built-in; among
-the built-ins only `rating` declares a rule (R12). Comparing `type` strings needs no definition;
-when the stored-kind or config check needs the definition of a `type` that the registry does not
-hold (schemas read with another registry), that field gets `unknown_field_type` {type} at the
-candidate's `["fields", i, "type"]` and is skipped, and nothing is thrown. The call accepts
+the built-ins only `rating` declares a rule (R12). The registry is consulted only when a check
+needs a definition: comparing `type` strings needs none, so a new candidate field (its `fieldId`
+in no earlier version) of a type the registry lacks gets no issue here (parsing the candidate with
+that registry already refuses it, R6). When the stored-kind or config check needs the definition
+of a `type` that the registry does not hold (schemas read with another registry), that field gets
+one `unknown_field_type` {type} at the candidate's `["fields", i, "type"]` and is skipped: if the
+most recent earlier version with the same type needs the missing definition, older versions are
+not compared for that field. Nothing is thrown for a registry miss. The call accepts
 changes to label, help, required and order, compatible config changes, removed fields, and a
 removed field coming back with the same type and stored kind and a compatible config. The check lives in this package, so publish (003), the Builder (004) and
 any future API or AI-generated schema all obey it (ADR 0009). — _US7_
@@ -552,8 +590,9 @@ limit — throws. This is the one stated exception to "the package and the built
   renderer (002) sends `null` or omits the key for "no answer".
 - Optional checkbox with `minSelections: 2`: no selection is valid, one selection is `too_few`. A
   required checkbox with `minSelections: 0` still needs at least one selection.
-- A field with no `config` gets all defaults; an option field without `options` fails with
-  `required`, and with an empty `options` list with `too_few` {min: 1}.
+- A field with no `config` gets all defaults; `config: null` is not absent and fails with
+  `invalid` for every built-in (R6). An option field without `options` fails with `required`, and
+  with an empty `options` list with `too_few` {min: 1}.
 
 ### Failure
 
@@ -604,6 +643,18 @@ limit — throws. This is the one stated exception to "the package and the built
   exception propagates out of whole-response validation to the caller and is never turned into
   `invalid` or `required` (R8). It is a server fault for 005 to report, not the respondent's
   mistake.
+- A third-party rule whose result breaks its contract is a developer-facing `TypeError`, never a
+  catalogue issue (R4, R8): a config-dependent `storeAs` that resolves to a kind it did not
+  declare (`"Text"`, `"json"`, `null`, a kind outside its declared list) throws wherever the kind
+  is read, e.g. in the version check (R2); an answer-compatibility rule that returns a bare string
+  such as `"max"`, `null`, or a list holding a non-string or a name that is not a config property
+  of the field throws in the version check (R19). A rule naming an optional config key that
+  neither compared config holds (e.g. checkbox `minSelections`) is fine, because the config shape
+  declares it.
+- The version check with a registry that lacks a type: a new candidate field of that type (its
+  `fieldId` in no earlier version) gets no issue there, as parsing already refused it; a field
+  whose most recent same-type earlier version needs the missing definition gets one
+  `unknown_field_type`, and older versions are not compared for it (R19).
 - A third-party rule that raises a code outside R4's list comes out as `invalid`; the catalogue is
   closed in MVP (R4).
 - Duplicate or malformed `type`, or incompatible analytics data → refused when the definition or
@@ -670,12 +721,20 @@ limit — throws. This is the one stated exception to "the package and the built
 - Fractions of a second: 1–9 digits are accepted and truncated to milliseconds, never rounded:
   `2026-11-04T10:30:00.123456789Z` → `2026-11-04T10:30:00.123Z`, `.9999` → `.999`.
 - The UTC instant must lie in years 0001–9999: `0001-01-01T00:30+01:00` (UTC year 0000) and
-  `9999-12-31T23:30-01:00` (UTC year 10000) → `invalid_date`.
+  `9999-12-31T23:30-01:00` (UTC year 10000) → `invalid_date`; only the UTC year is checked, so
+  `0000-12-31T23:30-01:00` → `0001-01-01T00:30:00.000Z` is valid.
+- Date answers are not trimmed: `" 2026-11-04 "`, `"2026-11-04\n"`, `""` and `"  "` →
+  `invalid_date` (also on an optional field); a non-string such as `20261104` → `invalid`.
+- A date-time cell whose wall-clock year passes 9999: `9999-12-31T23:30:00.000Z` with
+  `Asia/Bangkok` → `+010000-01-01T06:30:00.000+07:00` (ISO expanded year form; 007 must expect
+  it).
 - Daylight saving: an `America/New_York` cell has offset `-05:00` for a January instant and
   `-04:00` for a July instant.
 - A date-time cell in a zone whose offset at that instant has seconds (local mean time, before
   about 1900) gets a whole-minute offset and still names the same instant (R16).
-- Export options with time zone `Mars/Base`, `+07:00` or `""` → `invalid_time_zone`.
+- Export options with time zone `Mars/Base`, `+07:00` or `""` → `invalid_time_zone`; a time zone
+  that is not a string (`7`, `null`) → `invalid`; an unknown option key such as `locale` →
+  `unknown_property` {key: "locale"}.
 - "Other" chosen with the `other` text missing, `null`, empty or whitespace-only →
   `other_text_required`; `other` text present (even `""` or `null`) while `other` is not selected
   → `invalid`.
@@ -683,7 +742,10 @@ limit — throws. This is the one stated exception to "the package and the built
   `minSelections: 2` with one option plus "Other" → valid; `maxSelections: 0` in config →
   `too_small` {min: 1}.
 - `choice` with two selected IDs → `too_many` {max: 1}.
-- `allowOther: false` and `other` selected → `unknown_option` {optionId: "other"}.
+- Checkbox with `maxSelections: 1` and the same option ID twice → `duplicate` and `too_many`
+  {max: 1} (limits count every entry of `optionIds`).
+- `allowOther: false` and `other` selected → only `unknown_option` {optionId: "other"}, with or
+  without `other` text (no `other_text_required`).
 - `file` with `maxFiles: 1` and two IDs → `too_many` {max: 1}; the same ID twice → `duplicate`.
 - `file` config `allowedTypes: []` → `too_few` {min: 1}; `*/*` → `invalid`; `image/*` is valid.
 - `number` with `integer: true`: `2` is valid, `2.5` → `not_integer`; `min` = `max` is allowed.
@@ -952,8 +1014,9 @@ none of them blocks `/impl-plan`. Each flag keeps its remaining action.
    rounds of 2026-11-05 answers were written into existing requirements (the second round extended
    R1, R4, R12 and R19 and added AC29; the third, after `/analyze`, extended R1, R4–R8, R10, R11
    and R13–R17 and existing ACs; the sync after the second `/analyze` extended R4, R8, R19 and R20
-   and AC10, AC12 and AC26); no requirement was added, no AC besides AC29, and nothing was
-   trimmed. If `/tasks`
+   and AC10, AC12 and AC26; the 2026-11-06 sync with the implementation extended R2, R4, R6, R8,
+   R14–R16 and R19 and the Edge cases only); no requirement was added, no AC besides AC29, and
+   nothing was trimmed. If `/tasks`
    goes over 40 tasks, apply the intent's fallback split (open question 7) along story lines,
    exactly as plan.md Risk 6 does: US5 (option fields with "Other") and US6 (date, file) — plan
    steps 7–8 — move to `001b` with AC18–AC24 and every AC row that needs an option, date or file
@@ -1030,3 +1093,22 @@ none of them blocks `/impl-plan`. Each flag keeps its remaining action.
   Limits); F29 accepted as-is (Flag 8 already records Chromium-only proof). (Intro, R4, R8, R19,
   R20, Edge cases (Failure, Limits), AC10, AC12, AC26, Flag 9)
 - Spec synced after third /analyze: P06, P07, P08.
+
+### Session 2026-11-06
+
+- Spec synced with the implementation after /converge (no owner decision): a config-dependent
+  stored kind outside the definition's declared kinds throws a developer-facing `TypeError`, not a
+  catalogue issue (R2, R4, R8); the version check throws a `TypeError` when an
+  answer-compatibility result is not a list of the field's config property names (own key of
+  either compared config, or declared by the config shape; inherited names never count), and
+  these plugin faults are outside R4's catalogue (R4, R8, R19); export options: an unknown key →
+  `unknown_property`, a non-string zone → `invalid` (R16); date answers are not trimmed, a
+  non-string is `invalid`, a local year 0000 is accepted when its UTC instant is in year 0001, and
+  a date-time cell with a wall-clock year above 9999 uses the ISO expanded year form (R15, R16,
+  note for 007); `config: null` → `invalid`, only an absent config gets the defaults (R6); with
+  "Other" off a selected `other` gives only `unknown_option`, and selection limits count every
+  `optionIds` entry, so a repeat can give `duplicate` and `too_many` (R14); the version check
+  consults the registry only when a check needs a definition — no issue for a new candidate field
+  of an unregistered type, one `unknown_field_type` and no older comparison when the most recent
+  same-type earlier version needs a missing definition (R19). (Intro, R2, R4, R6, R8, R14–R16,
+  R19, Edge cases (Empty, Failure, Limits))
