@@ -263,3 +263,9 @@ Notable edges:
 Source: `/converge` audit at f30054f (2026-11-06): one MEDIUM finding (M1), no CRITICAL/HIGH.
 
 - [x] T040 Write failing tests for the three misbehaving-plugin cases (an `incompatibleChanges` rule returning non-strings, a rule returning a non-array such as `"max"`, and a config-dependent `storeAs.pick` returning a kind outside its declared `kinds`), then make `checkVersionHistory` / `storeAsOf` refuse them so no non-catalogue or silently wrong result leaves the package; throw a `TypeError` like other plugin faults (R8: a broken plugin must be loud), record the rule in plan.md Revisions and close the "Open for review" note (closes: M1) — `packages/schema/src/core/version-history.ts`, `packages/schema/src/core/define-field.ts`, `packages/schema/test/version-history.test.ts`, `packages/schema/test/define-field.test.ts`, `docs/work/001-field-core/plan.md`
+
+## Convergence 2
+
+Source: `/converge` audit at 62a2451 (2026-11-06): M1 and L2–L4 resolved; one new MEDIUM (M2), no CRITICAL/HIGH.
+
+- [ ] T041 Write tests for the config-property rule of T040 in `checkVersionHistory`: a test-local plugin whose config has an optional key without a default (e.g. `z.strictObject({ max: z.int().default(5), limit: z.int().optional() })`), with a rule that names that key unconditionally while neither parsed config holds it, gives `field_config_incompatible` naming it and no `TypeError`; the same rule on a refined config (`.superRefine`) behaves the same; a plugin whose config schema has no `shape` (e.g. a `.transform` or `.pipe` config) accepts a name only when one of the two parsed configs holds it as an own key, and throws a `TypeError` otherwise; an inherited name (`toString`, `__proto__`) never counts. Each row must fail with the `isShapeKey` clause removed, as plan.md "convergence 1 — T040" states (closes: M2) — `packages/schema/test/version-history.test.ts`
