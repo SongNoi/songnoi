@@ -1,7 +1,7 @@
 import * as z from "zod"
 import type { CellOptions } from "./cell-options"
 import { FieldDefinitionError, type Issue, type IssuePath } from "./issues"
-import { isPlainObject, readOwn } from "./json"
+import { describeValue, isPlainObject, readOwn } from "./json"
 
 // `defineField` (spec R1, R2; ADR 0007 as amended; plan "defineField"). One public call defines a
 // field type; built-ins and plugins use exactly this call. Config and answer types are inferred
@@ -188,13 +188,26 @@ export function defineField<
   return definition as unknown as ReturnType<typeof defineField<Type, CS, AS, K, R, B>>
 }
 
-/** The stored kind of `definition`'s values for a parsed config (fixed, or picked by config). */
+/**
+ * The stored kind of `definition`'s values for a parsed config (fixed, or picked by config).
+ *
+ * @throws TypeError when a config-dependent `pick` returns anything that is not one of its
+ *   declared `kinds` (a plugin fault, R8: a broken plugin is loud, never a silently wrong kind).
+ */
 export function storeAsOf<D extends FieldDefinition>(
   definition: D,
   config: FieldConfig<D>,
 ): StoreAs {
   const { storeAs } = definition.analytics
-  return typeof storeAs === "string" ? storeAs : storeAs.pick(config)
+  if (typeof storeAs === "string") return storeAs
+  // A JavaScript plugin (or a cast) may return anything here.
+  const picked: unknown = storeAs.pick(config)
+  const declared = storeAs.kinds.find((kind) => kind === picked)
+  if (declared !== undefined) return declared
+  throw new TypeError(
+    `Field type "${definition.type}": analytics.storeAs.pick returned ${describeValue(picked)}, ` +
+      `which is not one of its declared kinds (${storeAs.kinds.join(", ")}).`,
+  )
 }
 
 // --- definition checks ---------------------------------------------------------------------------

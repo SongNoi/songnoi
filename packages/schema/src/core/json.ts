@@ -22,3 +22,12 @@ export function hasOwnKey(object: object, key: PropertyKey): boolean {
 export function readOwn(object: object, key: PropertyKey): unknown {
   return Object.hasOwn(object, key) ? (object as Record<PropertyKey, unknown>)[key] : undefined
 }
+
+/** A short developer-facing description of an untrusted value, for plugin-fault messages. */
+export function describeValue(value: unknown): string {
+  if (typeof value === "string") return JSON.stringify(value)
+  if (value === null) return "null"
+  if (Array.isArray(value)) return "an array"
+  if (typeof value === "number" || typeof value === "boolean") return String(value)
+  return `a value of type ${typeof value}`
+}

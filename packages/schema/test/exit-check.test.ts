@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { ratingField } from "../src/fields/rating"
-import { createFieldRegistry, parseFormSchema, validateResponse } from "../src/index"
+import { createFieldRegistry, parseFormSchema, ratingField, validateResponse } from "../src/index"
 import { acmeSignature } from "./fixtures/third-party"
 import { expectIssues } from "./helpers/issues"
 
@@ -8,9 +7,8 @@ import { expectIssues } from "./helpers/issues"
 // created from the built-in `rating` and the fixture third-party `acme/signature` (scoped type,
 // defined in test code with the public `defineField`) through the same public call; a Form Schema
 // using both is read and a response to it is validated. The calls come from the package barrel
-// (`src/index.ts`), the published entry point. `ratingField` is imported from its module until T033
-// adds the built-ins to the barrel; `test/browser/dist-smoke.test.ts` (T035) repeats this flow
-// against the built `dist/index.js`.
+// (`src/index.ts`), the published entry point; `test/browser/dist-smoke.test.ts` (T035) repeats
+// this flow against the built `dist/index.js`.
 //
 // Shared test: runs in Node and in Chromium. Reads no locale, time zone or environment.
 

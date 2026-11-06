@@ -1,6 +1,7 @@
 import { type FieldDefinition, storeAsOf } from "./define-field"
 import type { FieldEntry, FormSchema } from "./form-schema"
 import { type Failure, failure, type Issue } from "./issues"
+import { describeValue } from "./json"
 import type { FieldRegistry } from "./registry"
 
 // The version-history check (spec R19, US7; ADR 0009 as amended; plan "Version history"). A
@@ -35,6 +36,10 @@ interface IndexedVersion {
  * at `["fields", i]`. When the kind or config check needs a definition the registry does not hold,
  * the field gets `unknown_field_type` at `["fields", i, "type"]` and is skipped. Never throws for
  * that; an exception thrown by a plugin's own rule propagates.
+ *
+ * @throws TypeError when a plugin rule breaks its contract (R8: a broken plugin is loud): a
+ *   `storeAs.pick` returning an undeclared kind (see `storeAsOf`), or an `incompatibleChanges`
+ *   result that is not an array of config property names (see `incompatibleProperties`).
  */
 export function checkVersionHistory(
   earlier: readonly EarlierVersion[],
@@ -123,14 +128,62 @@ function checkField(
     }
 
     // 3. The definition's own answer-compatibility rule (absent = accepts every change).
-    const properties = definition.incompatibleChanges?.(previous.config, config) ?? []
+    const properties = incompatibleProperties(definition, previous.config, config)
     if (properties.length > 0) {
       return {
         code: "field_config_incompatible",
-        params: { fieldId, type, properties: [...properties], version },
+        params: { fieldId, type, properties, version },
         path,
       }
     }
   }
   return undefined
+}
+
+/**
+ * The properties `definition.incompatibleChanges` names for a change from `previous` to `next`
+ * (absent rule = none), copied into a new array. The result is checked before use, so no
+ * non-catalogue value reaches an issue: it must be a real array (`Array.isArray`) whose every entry
+ * is a string naming a config property, that is an own key of either parsed config, or an own key
+ * of the config schema's `shape` when the schema has one (a Zod object schema, refined or not), so
+ * an optional key without a default that neither config holds still counts.
+ *
+ * @throws TypeError for any other result (`undefined`, `null`, a string, an array-like, a `Set`,
+ *   a non-string entry or an unknown name).
+ */
+function incompatibleProperties(
+  definition: FieldDefinition,
+  previous: Readonly<Record<string, unknown>>,
+  next: Readonly<Record<string, unknown>>,
+): string[] {
+  if (definition.incompatibleChanges === undefined) return []
+  // A JavaScript plugin (or a cast) may return anything here.
+  const result: unknown = definition.incompatibleChanges(previous, next)
+  const fault = (problem: string): TypeError =>
+    new TypeError(`Field type "${definition.type}": incompatibleChanges ${problem}.`)
+  if (!Array.isArray(result)) {
+    throw fault(`returned ${describeValue(result)}, not an array of config property names`)
+  }
+  const entries: readonly unknown[] = result
+  const properties: string[] = []
+  // An index loop, not `every`/`map`: a hole in a sparse array must be read (as `undefined`).
+  for (let index = 0; index < entries.length; index++) {
+    const name = entries[index]
+    if (typeof name !== "string") {
+      throw fault(`returned ${describeValue(name)} at index ${index}, not a property name`)
+    }
+    // The schema's shape is read only for a name neither parsed config holds.
+    const known =
+      Object.hasOwn(previous, name) || Object.hasOwn(next, name) || isShapeKey(definition, name)
+    if (!known) throw fault(`named ${JSON.stringify(name)}, which is not a config property`)
+    properties.push(name)
+  }
+  return properties
+}
+
+/** True when the definition's config schema has a `shape` object (a Zod object) owning `name`. */
+function isShapeKey(definition: FieldDefinition, name: string): boolean {
+  // A schema object, not untrusted JSON: Zod defines `shape` on the instance, maybe lazily.
+  const shape: unknown = Reflect.get(definition.config, "shape")
+  return typeof shape === "object" && shape !== null && Object.hasOwn(shape, name)
 }

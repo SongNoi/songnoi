@@ -50,10 +50,12 @@ const optionConfigShape = {
   otherLabel: nonBlankString.optional(),
 }
 
-interface OtherConfig {
-  readonly allowOther: boolean
-  readonly otherLabel?: string | undefined
-}
+// The shared keys as one object schema, so the "Other" keys' type is derived, not hand-written.
+// (`optionConfigSchema` itself cannot be used: its refinement below takes this type.)
+const optionConfigBase = z.strictObject(optionConfigShape)
+
+/** The parsed "Other" keys both option configs share. */
+type OtherConfig = Readonly<Pick<z.output<typeof optionConfigBase>, "allowOther" | "otherLabel">>
 
 // Zod runs an object refinement only when the keys parsed without an aborting issue, so a missing
 // or malformed `options` never reaches the cross-field rules below.
@@ -68,7 +70,7 @@ function requireOtherLabel(config: OtherConfig, ctx: z.RefinementCtx): void {
 }
 
 /** Config of `choice` and `dropdown`: `{ options, allowOther = false, otherLabel? }`, strict. */
-export const optionConfigSchema = z.strictObject(optionConfigShape).superRefine(requireOtherLabel)
+export const optionConfigSchema = optionConfigBase.superRefine(requireOtherLabel)
 
 /**
  * Config of `checkbox`: the shared keys plus optional `minSelections` (int ≥ 0) and
