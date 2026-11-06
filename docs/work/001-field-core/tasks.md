@@ -282,4 +282,4 @@ Source: `/converge` audit at b894856 (2026-11-06): M2, L1, L5, L6 resolved; one 
 
 Source: `/converge` audit at de87c22 (2026-11-06): M3 resolved; one new MEDIUM (M4: the Limits sentence "an expanded-year string is not a valid answer" has no date-time test), no CRITICAL/HIGH.
 
-- [ ] T044 Add date-time answer rows that `+010000-01-01T06:30:00.000+07:00` (the Bangkok expanded-year cell) and `+002026-11-04T10:30Z` give `invalid_date`; in the AC23 round-trip, replace the `continue` for expanded-year cells with an assertion that feeding the cell back gives `invalid_date` (closes: M4) — `packages/schema/test/fixtures/date-cases.ts`, `packages/schema/test/fields/date.test.ts`
+- [x] T044 Add date-time answer rows that `+010000-01-01T06:30:00.000+07:00` (the Bangkok expanded-year cell) and `+002026-11-04T10:30Z` give `invalid_date`; in the AC23 round-trip, replace the `continue` for expanded-year cells with an assertion that feeding the cell back gives `invalid_date` (closes: M4) — `packages/schema/test/fixtures/date-cases.ts`, `packages/schema/test/fields/date.test.ts`

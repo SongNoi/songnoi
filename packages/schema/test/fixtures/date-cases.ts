@@ -227,6 +227,15 @@ export const dateTimeAnswerCases: readonly DateAnswerCase[] = [
   ),
   dateTime("UTC year 0000 is out of range", "0001-01-01T00:30+01:00", invalidDate),
   dateTime("UTC year 10000 is out of range", "9999-12-31T23:30-01:00", invalidDate),
+  // T044 (M4): an answer's year is exactly four digits; the expanded `±YYYYYY` form is a cell form
+  // (R16) only, and is never an accepted answer (R15, Limits).
+  dateTime(
+    "an expanded-year cell (year 10000, Bangkok) is not an answer",
+    "+010000-01-01T06:30:00.000+07:00",
+    invalidDate,
+  ),
+  dateTime("an expanded year with a plus sign is refused", "+002026-11-04T10:30Z", invalidDate),
+  dateTime("an expanded year with a minus sign is refused", "-000001-01-01T00:00Z", invalidDate),
 ]
 
 /** Every answer row of AC21 and AC22. */

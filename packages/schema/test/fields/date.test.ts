@@ -257,11 +257,14 @@ describe("AC21 / AC23 date: the shared cell table", () => {
       const cell = dateField.toCell(row.answer, dateTimeConfig, cellOptions(row.timeZone))
       expect(instantOf(cell), row.name).toBe(instantOf(row.answer))
       expect(instantOf(cell), row.name).not.toBeUndefined()
-      // An expanded-year cell (R16, past year 9999) is outside the four-digit answer form (R15),
-      // so only four-digit-year cells are fed back as answers.
-      if (!/^\d{4}-/.test(cell)) continue
       const back = validateResponse(schema, { [FIELD_ID]: cell }, registry)
-      expect(back, row.name).toStrictEqual({ ok: true, answers: { [FIELD_ID]: row.answer } })
+      if (/^\d{4}-/.test(cell)) {
+        expect(back, row.name).toStrictEqual({ ok: true, answers: { [FIELD_ID]: row.answer } })
+      } else {
+        // An expanded-year cell (R16, past year 9999) is outside the four-digit answer form (R15),
+        // so feeding it back is refused with exactly invalid_date.
+        expectRefused(back, [invalidDate])
+      }
     }
   })
 })
