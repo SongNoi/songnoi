@@ -9,7 +9,7 @@ import {
   prefixIssues,
   toIssues,
 } from "./issues"
-import { hasOwnKey, isPlainObject, readOwn } from "./json"
+import { describeValue, hasOwnKey, isPlainObject, readOwn } from "./json"
 import type { FieldRegistry } from "./registry"
 
 // Form Schema v1 and its read entry point (spec R5–R7; ADR 0012 decision 1; plan "Form Schema v1
@@ -194,6 +194,9 @@ export function migrateFormSchema(
  * problem is reported with its path. On success the schema is a fresh object with the language
  * canonicalised, `required` and every config default written in; parsing it again gives an equal
  * value. The input is never changed.
+ *
+ * @throws TypeError when a registered field type's config schema returns something other than a
+ *   plain object (R8: a broken plugin is loud), with or without an explicit `config`.
  */
 export function parseFormSchema(
   input: unknown,
@@ -296,6 +299,13 @@ function parseFieldEntry(
   if (!config.success) {
     issues.push(...prefixIssues([...path, "config"], toIssues(config.error.issues, "schema")))
     return undefined
+  }
+  // A JavaScript plugin (or a cast) may output anything; a config must be a plain object (R8).
+  const output: unknown = config.data
+  if (!isPlainObject(output)) {
+    throw new TypeError(
+      `Field type "${type}": the config schema returned ${describeValue(output)}, not a plain object.`,
+    )
   }
   return parsed === undefined ? undefined : { ...parsed, config: config.data }
 }

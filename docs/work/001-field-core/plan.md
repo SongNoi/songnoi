@@ -494,7 +494,8 @@ All arithmetic is UTC-only (`Date.UTC`, `setUTCFullYear`, `toISOString`); no loc
   (`GMT+07:00`, `GMT-04:00`, `GMT`), the wall time is `instant + offset` formatted from UTC, and the
   suffix is `±HH:MM` (`+00:00` for a zero offset when a zone was given). Historical sub-minute
   offsets (local mean time before ~1900) are rounded to the minute and the wall time is shifted to
-  match, so the string still denotes the exact instant. Formatters are cached per zone.
+  match, so the string still denotes the exact instant. Formatters are cached per zone, keyed
+  case-insensitively (review 1 — T045).
 - **`CellOptions` and `parseCellOptions`:** `core/cell-options.ts` holds one internal Zod schema,
   `{ timeZone?: string }` branded, and `CellOptions` is its `z.output`. It is split over two steps:
   - **US1 step (Order step 3, T010):** the schema shape and the branded `CellOptions` type, because
@@ -564,7 +565,10 @@ If the registry has none (schemas read with another registry) → `unknown_field
   `fetch`, `XMLHttpRequest`, `WebSocket`, `navigator`, `window`, `document`, `localStorage`);
   `no-restricted-properties` for local-time and locale APIs (`getTimezoneOffset`, `getHours`,
   `getDate`, `getMonth`, `getFullYear`, `getDay`, `getMinutes`, `getSeconds`, the matching local
-  setters, `toLocaleString`, `toLocaleDateString`, `toLocaleTimeString`, `Date.parse`). A second
+  setters, `toLocaleString`, `toLocaleDateString`, `toLocaleTimeString`, `Date.parse`);
+  `no-restricted-syntax` for `Intl.*` calls and constructors that read the default locale or zone
+  (no arguments, or `undefined` / `[]` as the locales argument), with the base preset's
+  "use server" ban spread back in (review 1 — T047). A second
   block for `src/fields/**` repeats those patterns (flat config replaces rule options) and adds
   `**/core/**` (constitution 2).
 - **TSDoc** (plugin authors' docs): every public export gets a TSDoc comment. This is a deliverable
@@ -805,7 +809,7 @@ cross-checks the nine together.
 | **9. Language canonicalisation** — `Intl.getCanonicalLocales` also replaces deprecated aliases (`iw` → `he`) with engine-dependent CLDR data, and engines have differed on extlang and grandfathered tags. | Tests use stable tags (`th`, `TH`, `th-TH`, `en`); the server's parse is the stored one (003/005 re-parse). Extlang, grandfathered and private-use-only tags are refused by a structural pre-check before any `Intl` call (Rules on values), so their result never depends on the engine. Reported to the owner as a nuance of R5 "canonical case".                                            |
 | **10. Engines without `Intl.Segmenter`.**                                                                                                                                                                  | Lazy creation: import never fails, counting throws only where a length limit is set. Baseline documented in ADR 0012; all supported targets have it. This is the one stated exception to "built-ins never throw" (Design, whole-response validation).                                                                                                                                          |
 | **11. Plugin misbehaviour** (throwing inside rules, wrong stored-value kinds, `storeAs` or rule changes between plugin releases).                                                                          | Not swallowed (owner confirmed 2026-11-05); a test with a throwing test-local plugin proves the exception propagates. R8's never-throw promise covers the package and built-ins, proven with the hostile-JSON corpus per family and across all nine. Types catch wrong kinds for TypeScript plugins. History conflicts block the next publish, never change stored data (ADR 0009 as amended). |
-| **12. Performance** — answer schemas are built per `validateResponse` call; one `Intl.DateTimeFormat` per zone.                                                                                            | Fine for MVP form sizes; formatters cached per zone; memoising answer schemas per field entry is a later, internal change.                                                                                                                                                                                                                                                                     |
+| **12. Performance** — answer schemas are built per `validateResponse` call; one `Intl.DateTimeFormat` per zone (case-insensitive).                                                                         | Fine for MVP form sizes; formatters cached per zone, keyed on the lower-cased zone name so all case variants share one formatter and the cache is bounded by the number of real zones (review 1 — T045); memoising answer schemas per field entry is a later, internal change.                                                                                                                 |
 
 ## Proof
 
@@ -1237,3 +1241,32 @@ is now refused loudly (R8) instead of leaking a non-catalogue or silently wrong 
   shape (`Pick<z.output<…>, "allowOther" | "otherLabel">`) instead of hand-writing it;
   `.gitignore` (`.vitest/`) is listed in Files to touch; `test/exit-check.test.ts` imports
   `ratingField` from the barrel.
+
+### 2026-11-06 — review 1 — T045–T048
+
+Closes the `/review` findings at bef25a4 (one Important, three nits). Design unchanged.
+
+- **T045 (Important #1), zone formatter cache:** `fields/shared/calendar.ts` keys its per-zone
+  `Intl.DateTimeFormat` cache on `timeZone.toLowerCase()` (get and set), so every case variant of a
+  zone (`Asia/Bangkok`, `asia/bangkok`, …) shares one formatter and the cache is bounded by the
+  number of real zones instead of growing with each spelling a caller passes. The formatter is
+  built on first use with the zone as given (IANA names match case-insensitively, so the offsets
+  are the same); the zone is not canonicalised through `resolvedOptions().timeZone`, and
+  `parseCellOptions` still returns the zone as given. Risk 12 and "Dates and UTC" updated.
+- **T046 (nit 2, R8), non-object config output:** after a field's config parses,
+  `parseFormSchema` checks that the output is a plain object (`isPlainObject`); otherwise it throws
+  a developer-facing `TypeError` naming the field type and describing the value (`describeValue`),
+  like the T040 plugin faults. This applies with and without an explicit `config` (a missing
+  config is parsed from `{}` through the same schema). Built-ins are unaffected: their configs are
+  strict Zod objects.
+- **T047 (nit 3, R20), default-locale `Intl`:** the root `eslint.config.mjs` adds
+  `no-restricted-syntax` to the `packages/schema/src/**` blocks: a `new` or a call on `Intl.X` with
+  no arguments, or whose first argument is the identifier `undefined` or an empty array literal, is
+  refused (each falls back to the environment's default locale, and for dates its zone).
+  `Intl.getCanonicalLocales` and `Intl.supportedValuesOf` are exempt (they never read the default).
+  Because flat config replaces rule options, the blocks spread the base preset's "use server"
+  selectors (`USE_SERVER_INLINE`, `USE_SERVER_FILE`) back in. Checked with a throwaway probe file;
+  current `src` (`Intl.Segmenter("en", …)`, `Intl.DateTimeFormat("en-US", { timeZone, … })`,
+  `Intl.getCanonicalLocales(tag)`) passes.
+- **T048 (nit 1):** the tasks.md header now counts 39 planned tasks plus the convergence and review
+  tasks T040–T048 appended outside the ADR 0006 planning limit.

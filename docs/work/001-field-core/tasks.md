@@ -3,9 +3,10 @@
 Inputs: [spec.md](./spec.md) (US1–US7, R1–R20, AC1–AC29), [plan.md](./plan.md) (approved
 2026-11-05, incl. Zod as a peer dependency, ADR 0012, `pnpm test:browser` and the CI reorder;
 revised the same day after `/analyze`, see its Revisions). All paths are relative to the repo root.
-39 tasks (limit 40, ADR 0006), plus convergence tasks T040 and T041 appended at the end
-(R2, R8, R19 hardening). Revised after `/analyze` (F01, F02, F04, F05, F06, F10, F11, F12,
-F13, F16, F22, F23, F24, F27, F28, F30). Revised again after the second `/analyze` pass
+39 planned tasks (limit 40, ADR 0006), plus convergence and review tasks T040–T048 appended at
+the end, outside the ADR 0006 planning limit (R2, R8, R19 hardening; review 1 findings).
+Revised after `/analyze` (F01, F02, F04, F05, F06, F10, F11, F12, F13, F16, F22, F23, F24, F27,
+F28, F30). Revised again after the second `/analyze` pass
 (2026-11-05: N01, N02, N04, N06, N07, N10, N11, N12, N13). Revised a third time after the third
 `/analyze` pass (2026-11-05: P02, P03, P04, P06); every fix is a wording change inside an
 existing task, numbering unchanged.
@@ -288,7 +289,7 @@ Source: `/converge` audit at de87c22 (2026-11-06): M3 resolved; one new MEDIUM (
 
 Source: `/review` by `spec-reviewer` at bef25a4 (2026-11-06): verdict "Changes needed" — one Important finding, three nits.
 
-- [ ] T045 Bug (Important #1): the per-zone `Intl.DateTimeFormat` cache keys on the exact zone string, so case variants of one zone (`Asia/Bangkok`, `asia/bangkok`, …) each create a formatter that is never freed. Commit a failing test first (case variants of a zone create at most one formatter and give the same cell), then key the cache case-insensitively without changing what `parseCellOptions` returns; add a plan Revisions line and correct plan Risk 12 — `packages/schema/src/fields/shared/calendar.ts`, `packages/schema/test/fields/date.test.ts`, `docs/work/001-field-core/plan.md`
-- [ ] T046 Nit 2 (L7): `parseFormSchema` throws a developer-facing `TypeError` when a field definition's config schema outputs a non-plain-object (plugin fault, R8, like T040); failing test first — `packages/schema/src/core/form-schema.ts`, `packages/schema/test/form-schema.test.ts`, `docs/work/001-field-core/plan.md`
-- [ ] T047 Nit 3: ESLint (R20) refuses `Intl.*` constructors and calls in `packages/schema/src/**` that read the default locale or zone (no arguments or an `undefined` locale) — `eslint.config.mjs`
-- [ ] T048 Nit 1: correct the tasks.md header (39 planned tasks plus convergence and review tasks T040–T048) — `docs/work/001-field-core/tasks.md`
+- [x] T045 Bug (Important #1): the per-zone `Intl.DateTimeFormat` cache keys on the exact zone string, so case variants of one zone (`Asia/Bangkok`, `asia/bangkok`, …) each create a formatter that is never freed. Commit a failing test first (case variants of a zone create at most one formatter and give the same cell), then key the cache case-insensitively without changing what `parseCellOptions` returns; add a plan Revisions line and correct plan Risk 12 — `packages/schema/src/fields/shared/calendar.ts`, `packages/schema/test/fields/date.test.ts`, `docs/work/001-field-core/plan.md`
+- [x] T046 Nit 2 (L7): `parseFormSchema` throws a developer-facing `TypeError` when a field definition's config schema outputs a non-plain-object (plugin fault, R8, like T040); failing test first — `packages/schema/src/core/form-schema.ts`, `packages/schema/test/form-schema.test.ts`, `docs/work/001-field-core/plan.md`
+- [x] T047 Nit 3: ESLint (R20) refuses `Intl.*` constructors and calls in `packages/schema/src/**` that read the default locale or zone (no arguments or an `undefined` locale) — `eslint.config.mjs`
+- [x] T048 Nit 1: correct the tasks.md header (39 planned tasks plus convergence and review tasks T040–T048) — `docs/work/001-field-core/tasks.md`

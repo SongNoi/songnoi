@@ -1,6 +1,11 @@
 import { builtinModules } from "node:module"
 import { base } from "@songnoi/config/eslint/base"
 import { react } from "@songnoi/config/eslint/react"
+import {
+  DEFINE_ACTION_ONLY,
+  USE_SERVER_FILE,
+  USE_SERVER_INLINE,
+} from "@songnoi/config/eslint/server-actions"
 
 // R20 guard rails for @songnoi/schema (spec 001): the package runs unchanged in Node and in the
 // browser and never reads the environment, so `src/` may not touch Node, the DOM, React, the local
@@ -72,6 +77,23 @@ const noLocalTimeAndLocale = [
   },
 ]
 
+// `Intl.X()` / `new Intl.X()` with no arguments, or with `undefined` or `[]` as the locales
+// argument, falls back to the environment's default locale (and, for dates, its zone). Always pass
+// an explicit locale (R20, T047).
+const INTL_DEFAULT_MESSAGE =
+  "Intl with no locale reads the environment's default locale or zone; pass an explicit locale (R20)."
+// `Intl.getCanonicalLocales` and `Intl.supportedValuesOf` never read the default locale.
+const INTL_CALLEE =
+  "[callee.type='MemberExpression'][callee.object.name='Intl']" +
+  "[callee.property.name!=/^(getCanonicalLocales|supportedValuesOf)$/]"
+const noDefaultIntl = ["NewExpression", "CallExpression"].flatMap((node) =>
+  [
+    "[arguments.length=0]",
+    "[arguments.0.type='Identifier'][arguments.0.name='undefined']",
+    "[arguments.0.type='ArrayExpression'][arguments.0.elements.length=0]",
+  ].map((args) => ({ selector: `${node}${INTL_CALLEE}${args}`, message: INTL_DEFAULT_MESSAGE })),
+)
+
 const schemaSrcRules = (extraPatterns = []) => ({
   "no-restricted-imports": [
     "error",
@@ -79,6 +101,14 @@ const schemaSrcRules = (extraPatterns = []) => ({
   ],
   "no-restricted-globals": ["error", ...noPlatformGlobals],
   "no-restricted-properties": ["error", ...noLocalTimeAndLocale],
+  // Flat config replaces the base preset's `no-restricted-syntax`, so its "use server" ban is
+  // spread back in (see @songnoi/config/eslint/server-actions).
+  "no-restricted-syntax": [
+    "error",
+    { selector: USE_SERVER_INLINE, message: DEFINE_ACTION_ONLY },
+    { selector: USE_SERVER_FILE, message: DEFINE_ACTION_ONLY },
+    ...noDefaultIntl,
+  ],
 })
 
 export default [

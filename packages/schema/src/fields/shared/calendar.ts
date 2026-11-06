@@ -96,13 +96,17 @@ export function readDateTime(text: string): DateTimeResult {
 // --- zoned cells ---------------------------------------------------------------------------------
 
 // One formatter per zone; zones reach here only through `parseCellOptions`, so they are valid.
+// IANA zone names match case-insensitively and `parseCellOptions` keeps the zone as given, so the
+// cache is keyed on the lower-cased name: every case variant of a zone shares one formatter (built
+// from the first spelling seen) instead of each keeping its own for the life of the process (T045).
 const offsetFormatters = new Map<string, Intl.DateTimeFormat>()
 
 function offsetFormatter(timeZone: string): Intl.DateTimeFormat {
-  let formatter = offsetFormatters.get(timeZone)
+  const key = timeZone.toLowerCase()
+  let formatter = offsetFormatters.get(key)
   if (formatter === undefined) {
     formatter = new Intl.DateTimeFormat("en-US", { timeZone, timeZoneName: "longOffset" })
-    offsetFormatters.set(timeZone, formatter)
+    offsetFormatters.set(key, formatter)
   }
   return formatter
 }
