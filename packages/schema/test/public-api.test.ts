@@ -12,21 +12,32 @@ import * as api from "../src/index"
 // `validateResponse`. Phase 6 (US4, T018): `countGraphemes` (the built-in definitions themselves
 // join the barrel in T033). Phase 8 (US6, T025): `parseCellOptions` (the cell-options schema itself
 // stays internal; `CellOptions` is a type only). Phase 9 (US7, T030, T031): `generateId`,
-// `checkVersionHistory`.
+// `checkVersionHistory`. Phase 10 (T033), the final list: the nine built-in definitions by name and
+// `builtInFields`, a plain array of them (not a registry).
 const PINNED_EXPORTS: Readonly<Record<string, string>> = {
   CURRENT_SCHEMA_VERSION: "number",
   FieldDefinitionError: "function",
+  builtInFields: "object",
+  checkboxField: "object",
   checkVersionHistory: "function",
+  choiceField: "object",
   countGraphemes: "function",
   createFieldRegistry: "function",
   customIssue: "function",
+  dateField: "object",
   defineField: "function",
+  dropdownField: "object",
+  fileField: "object",
   generateId: "function",
   idSchema: "object",
   issueSchema: "object",
+  numberField: "object",
   parseCellOptions: "function",
   parseFormSchema: "function",
+  ratingField: "object",
   storeAsOf: "function",
+  textField: "object",
+  textareaField: "object",
   validateResponse: "function",
 }
 
