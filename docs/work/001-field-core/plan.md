@@ -1211,8 +1211,9 @@ is now refused loudly (R8) instead of leaking a non-catalogue or silently wrong 
   `===`, so `"Text"`, `"json"`, `42`, `undefined`, `null` and `["text"]` all fail, as does an R2
   kind the definition did not declare). Anything else → `TypeError` naming the field type, the
   returned value and the declared kinds. `defineField` still never calls `pick`. Because
-  `checkVersionHistory`, `validateResponse` and every other caller go through `storeAsOf`, a bad
-  `pick` throws there too, for the earlier config, the candidate config or both.
+  `checkVersionHistory` (and any direct caller, such as 005 and 008) goes through `storeAsOf`, a
+  bad `pick` throws there too, for the earlier config, the candidate config or both.
+  `validateResponse` does not read `storeAs`.
 - **`incompatibleChanges` result in `checkVersionHistory`:** checked before use. It must be a real
   array (`Array.isArray`; a string such as `"max"`, an array-like, a `Set`, `null` or `undefined`
   fail) whose every entry, read by index so a hole counts as `undefined`, is a string naming a

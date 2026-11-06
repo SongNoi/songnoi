@@ -3,7 +3,8 @@
 Inputs: [spec.md](./spec.md) (US1–US7, R1–R20, AC1–AC29), [plan.md](./plan.md) (approved
 2026-11-05, incl. Zod as a peer dependency, ADR 0012, `pnpm test:browser` and the CI reorder;
 revised the same day after `/analyze`, see its Revisions). All paths are relative to the repo root.
-39 tasks (limit 40, ADR 0006). Revised after `/analyze` (F01, F02, F04, F05, F06, F10, F11, F12,
+39 tasks (limit 40, ADR 0006), plus convergence tasks T040 and T041 appended at the end
+(R2, R8, R19 hardening). Revised after `/analyze` (F01, F02, F04, F05, F06, F10, F11, F12,
 F13, F16, F22, F23, F24, F27, F28, F30). Revised again after the second `/analyze` pass
 (2026-11-05: N01, N02, N04, N06, N07, N10, N11, N12, N13). Revised a third time after the third
 `/analyze` pass (2026-11-05: P02, P03, P04, P06); every fix is a wording change inside an
