@@ -283,3 +283,12 @@ Source: `/converge` audit at b894856 (2026-11-06): M2, L1, L5, L6 resolved; one 
 Source: `/converge` audit at de87c22 (2026-11-06): M3 resolved; one new MEDIUM (M4: the Limits sentence "an expanded-year string is not a valid answer" has no date-time test), no CRITICAL/HIGH.
 
 - [x] T044 Add date-time answer rows that `+010000-01-01T06:30:00.000+07:00` (the Bangkok expanded-year cell) and `+002026-11-04T10:30Z` give `invalid_date`; in the AC23 round-trip, replace the `continue` for expanded-year cells with an assertion that feeding the cell back gives `invalid_date` (closes: M4) — `packages/schema/test/fixtures/date-cases.ts`, `packages/schema/test/fields/date.test.ts`
+
+## Review 1
+
+Source: `/review` by `spec-reviewer` at bef25a4 (2026-11-06): verdict "Changes needed" — one Important finding, three nits.
+
+- [ ] T045 Bug (Important #1): the per-zone `Intl.DateTimeFormat` cache keys on the exact zone string, so case variants of one zone (`Asia/Bangkok`, `asia/bangkok`, …) each create a formatter that is never freed. Commit a failing test first (case variants of a zone create at most one formatter and give the same cell), then key the cache case-insensitively without changing what `parseCellOptions` returns; add a plan Revisions line and correct plan Risk 12 — `packages/schema/src/fields/shared/calendar.ts`, `packages/schema/test/fields/date.test.ts`, `docs/work/001-field-core/plan.md`
+- [ ] T046 Nit 2 (L7): `parseFormSchema` throws a developer-facing `TypeError` when a field definition's config schema outputs a non-plain-object (plugin fault, R8, like T040); failing test first — `packages/schema/src/core/form-schema.ts`, `packages/schema/test/form-schema.test.ts`, `docs/work/001-field-core/plan.md`
+- [ ] T047 Nit 3: ESLint (R20) refuses `Intl.*` constructors and calls in `packages/schema/src/**` that read the default locale or zone (no arguments or an `undefined` locale) — `eslint.config.mjs`
+- [ ] T048 Nit 1: correct the tasks.md header (39 planned tasks plus convergence and review tasks T040–T048) — `docs/work/001-field-core/tasks.md`
