@@ -38,7 +38,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "[ \"$CLAUDE_CODE_REMOTE\" = \"true\" ] && service postgresql start >/dev/null 2>&1; exit 0"
+            "command": "bash \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/cloud-postgres.sh"
           }
         ]
       }
